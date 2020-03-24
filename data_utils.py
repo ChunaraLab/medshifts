@@ -130,7 +130,7 @@ def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=Fal
         all_nan = np.logical_or(all_nan_train, all_nan_test)
         x_train = x_train[:, ~all_nan]
         x_test = x_test[:, ~all_nan]
-        print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
+        # print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
 
         # Impute NaN by mean of column
         imp = SimpleImputer(missing_values=np.nan, strategy='mean')
@@ -168,8 +168,7 @@ def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=Fal
     y_val = y_val.reshape(len(y_val))
     y_test = y_test.reshape(len(y_test))
     
-    print('orig_dims', orig_dims)
-    print('new_dims train, val, test x, y', x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
+    # print('orig_dims, new_dims train, val, test x, y', orig_dims, x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
 
     return (x_train, y_train), (x_val, y_val), (x_test, y_test), orig_dims, nb_classes
 

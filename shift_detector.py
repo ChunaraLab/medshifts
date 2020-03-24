@@ -49,7 +49,7 @@ class ShiftDetector:
         # 3. Perform shift detection test.
         for dr_ind, dr_technique in enumerate(self.dr_techniques):
             
-            print(DimensionalityReduction(dr_technique).name)
+            # print(DimensionalityReduction(dr_technique).name)
 
             # Train or load reduction model.
             dr_amount = min(DR_DIMS, X_tr.shape[1]) # TODO: reduce dimensions when instead of min
@@ -73,7 +73,7 @@ class ShiftDetector:
 
             od_loc_p_vals = []
             od_loc_t_vals = []
-            
+
             md_loc_p_vals = []
             md_loc_t_vals = []
 

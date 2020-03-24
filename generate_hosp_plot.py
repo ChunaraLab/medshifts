@@ -86,7 +86,7 @@ np.set_printoptions(threshold=sys.maxsize)
 datset = sys.argv[1]
 test_type = sys.argv[3]
 
-path = './hosp_results/'
+path = './hosp_results_parallel_5/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -96,14 +96,14 @@ if not os.path.exists(path):
 
 # Define feature groups
 # feature_sets = [['labs','vitals','demo','others']]
-feature_sets = [['labs','vitals','demo','others'], ['labs']]
+# feature_sets = [['labs','vitals','demo','others'], ['labs']]
 # feature_sets = [['labs','vitals','demo','others'], ['labs'], ['vitals']]
-# feature_sets = [['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo']]
+feature_sets = [['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo']]
 
 # Define train-test pairs of hospitals 
 hosp_pairs = []
-# HospitalIDs = HospitalIDs[:5]
-HospitalIDs = [i for i in HospitalIDs if i not in [413,394,199,345]]
+HospitalIDs = HospitalIDs[:5]
+# HospitalIDs = [i for i in HospitalIDs if i not in [413,394,199,345]]
 for hi in range(len(HospitalIDs)):
     for hj in range(len(HospitalIDs)):
         hosp_pairs.append((hi,hj,[HospitalIDs[hi]],[HospitalIDs[hj]]))
@@ -111,12 +111,12 @@ for hi in range(len(HospitalIDs)):
 
 # Define DR methods
 # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value, DimensionalityReduction.BBSDh.value]
-# dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
-dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
+dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
+# dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
 if test_type == 'multiv':
     # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value]
-    # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
-    dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
+    dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
+    # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
 if test_type == 'univ':
     dr_techniques_plot = dr_techniques.copy()
     dr_techniques_plot.append(DimensionalityReduction.Classif.value)
@@ -129,14 +129,16 @@ if test_type == 'multiv':
     od_tests = []
     md_tests = [MultidimensionalTest.MMD.value]
     # samples = [10, 20, 50, 100, 200, 500, 1000]
-    samples = [100, 1000]
+    # samples = [100, 1000]
+    samples = [1000]
     # samples = [10, 20, 50, 100, 200]
 else:
     # od_tests = [od.value for od in OnedimensionalTest]
     od_tests = [OnedimensionalTest.KS.value]
     md_tests = []
     # samples = [10, 20, 50, 100, 200, 500, 1000, 9000]
-    samples = [100, 1000]
+    # samples = [100, 1000]
+    samples = [1000]
     # samples = [10, 20, 50, 100, 200, 500]
 difference_samples = 10
 
@@ -148,10 +150,10 @@ sign_level = 0.05
 
 # Define shift types
 if sys.argv[2] == 'orig':
-    # shifts = ['orig']
-    # brightness = [0.75]
-    shifts = ['rand', 'orig']
-    brightness = [1.25, 0.75]
+    shifts = ['orig']
+    brightness = [0.75]
+    # shifts = ['rand', 'orig']
+    # brightness = [1.25, 0.75]
 else:
     shifts = []
 
@@ -160,6 +162,7 @@ else:
 # -------------------------------------------------
 
 samples_shifts_rands_dr_tech_feats_hosps = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques) + 1, len(feature_sets), len(hosp_pairs))) * (-1)
+samples_shifts_rands_dr_tech_feats_hosps_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques) + 1, len(feature_sets), len(hosp_pairs))) * (-1)
 
 for feature_set_idx, feature_set in enumerate(feature_sets):
 
@@ -173,10 +176,13 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
         hosp_path = feats_path + hosp_folder_name + '/'
         
         samples_shifts_rands_dr_tech = np.load("%s/samples_shifts_rands_dr_tech.npy" % (hosp_path))
+        samples_shifts_rands_dr_tech_t_val = np.load("%s/samples_shifts_rands_dr_tech_t_val.npy" % (hosp_path))
 
         samples_shifts_rands_dr_tech_feats_hosps[:,:,:,:,feature_set_idx,hosp_pair_idx] = samples_shifts_rands_dr_tech
+        samples_shifts_rands_dr_tech_feats_hosps_t_val[:,:,:,:,feature_set_idx,hosp_pair_idx] = samples_shifts_rands_dr_tech_t_val
 
 np.save("%s/samples_shifts_rands_dr_tech_feats_hosps.npy" % (path), samples_shifts_rands_dr_tech_feats_hosps)
+np.save("%s/samples_shifts_rands_dr_tech_feats_hosps_t_val.npy" % (path), samples_shifts_rands_dr_tech_feats_hosps_t_val)
 
 # Feat, dr, shift, sample - mean
 for feature_set_idx, feature_set in enumerate(feature_sets):
@@ -190,20 +196,31 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
             for si, sample in enumerate(samples):
 
                 hosp_pair_pval = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
+                hosp_pair_tval = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
                 for hosp_pair_idx, (hosp_train_idx, hosp_test_idx, hosp_train, hosp_test) in enumerate(hosp_pairs):
             
                     feats_dr_tech_shifts_samples_results = samples_shifts_rands_dr_tech_feats_hosps[si,shift_idx,:,dr_idx,feature_set_idx,hosp_pair_idx]
+                    feats_dr_tech_shifts_samples_results_t_val = samples_shifts_rands_dr_tech_feats_hosps_t_val[si,shift_idx,:,dr_idx,feature_set_idx,hosp_pair_idx]
 
                     mean_p_vals = np.mean(feats_dr_tech_shifts_samples_results)
                     std_p_vals = np.std(feats_dr_tech_shifts_samples_results)
+                    mean_t_vals = np.mean(feats_dr_tech_shifts_samples_results_t_val)
                     # if mean_p_vals==-1:
                     #     print(hosp_train, hosp_test)
                     #     mean_p_vals = 1
                     hosp_pair_pval[hosp_train_idx, hosp_test_idx] = mean_p_vals
+                    hosp_pair_tval[hosp_train_idx, hosp_test_idx] = mean_t_vals
 
                 hosp_pair_pval = pd.DataFrame(hosp_pair_pval, columns=HospitalIDs, index=HospitalIDs)
                 fig = sns.heatmap(hosp_pair_pval, linewidths=0.5)
                 plt.xlabel('Target hospital')
                 plt.ylabel('Source hospital')
-                plt.savefig("%s/%s_%s_%s_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                plt.savefig("%s/%s_%s_%s_p_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                plt.clf()
+
+                hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDs, index=HospitalIDs)
+                fig = sns.heatmap(hosp_pair_tval, linewidths=0.5)
+                plt.xlabel('Target hospital')
+                plt.ylabel('Source hospital')
+                plt.savefig("%s/%s_%s_%s_t_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                 plt.clf()
