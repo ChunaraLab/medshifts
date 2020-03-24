@@ -10,6 +10,7 @@ from shared_utils import *
 # SHIFT DETECTOR
 # -------------------------------------------------
 
+DR_DIMS = 32
 
 class ShiftDetector:
 
@@ -30,10 +31,12 @@ class ShiftDetector:
         od_decs = np.ones(len(self.dr_techniques)) * (-1)
         ind_od_decs = np.ones((len(self.dr_techniques), len(self.od_tests))) * (-1)
         ind_od_p_vals = np.ones((len(self.dr_techniques), len(self.od_tests))) * (-1)
+        ind_od_t_vals = np.ones((len(self.dr_techniques), len(self.od_tests))) * (-1)
 
         md_decs = np.ones(len(self.dr_techniques)) * (-1)
         ind_md_decs = np.ones((len(self.dr_techniques), len(self.md_tests))) * (-1)
         ind_md_p_vals = np.ones((len(self.dr_techniques), len(self.md_tests))) * (-1)
+        ind_md_t_vals = np.ones((len(self.dr_techniques), len(self.md_tests))) * (-1)
 
         red_dim = -1
         
@@ -49,7 +52,8 @@ class ShiftDetector:
             print(DimensionalityReduction(dr_technique).name)
 
             # Train or load reduction model.
-            shift_reductor = ShiftReductor(X_tr, y_tr, X_val, y_val, DimensionalityReduction(dr_technique), orig_dims, self.datset, dr_amount=32)
+            dr_amount = min(DR_DIMS, X_tr.shape[1]) # TODO: reduce dimensions when instead of min
+            shift_reductor = ShiftReductor(X_tr, y_tr, X_val, y_val, DimensionalityReduction(dr_technique), orig_dims, self.datset, dr_amount=dr_amount)
             red_dim = shift_reductor.dr_amount
             shift_reductor_model = None
             if self.red_models[dr_ind] is None:
@@ -68,7 +72,10 @@ class ShiftDetector:
                 te_acc = np.sum(np.equal(X_te_red, y_te).astype(int))/X_te_red.shape[0]
 
             od_loc_p_vals = []
+            od_loc_t_vals = []
+            
             md_loc_p_vals = []
+            md_loc_t_vals = []
 
             # Iterate over all test types and use appropriate test for the DR technique used.
             for test_type in self.test_types:
@@ -76,15 +83,17 @@ class ShiftDetector:
                     for od_test in self.od_tests:
                         shift_tester = ShiftTester(TestDimensionality(test_type), sign_level=self.sign_level, ot=OnedimensionalTest(od_test))
                         if dr_technique != DimensionalityReduction.BBSDh.value:
-                            p_val, feature_p_vals = shift_tester.test_shift(X_tr_red, X_te_red)
+                            p_val, feature_p_vals, t_val, _ = shift_tester.test_shift(X_tr_red, X_te_red) # TODO check t_val calc
                         else:
-                            p_val = shift_tester.test_chi2_shift(X_tr_red, X_te_red, nb_classes)
+                            p_val = shift_tester.test_chi2_shift(X_tr_red, X_te_red, nb_classes) # TODO return t_vals
                         od_loc_p_vals.append(p_val)
+                        od_loc_t_vals.append(t_val)
                 if test_type == TestDimensionality.Multi.value:
                     for md_test in self.md_tests:
                         shift_tester = ShiftTester(TestDimensionality(test_type), sign_level=self.sign_level, mt=MultidimensionalTest(md_test))
-                        p_val, _ = shift_tester.test_shift(X_tr_red[:self.sample], X_te_red)
+                        p_val, _, t_val, _ = shift_tester.test_shift(X_tr_red[:self.sample], X_te_red)
                         md_loc_p_vals.append(p_val)
+                        md_loc_t_vals.append(t_val)
 
             if dr_technique != DimensionalityReduction.BBSDh.value:
                 # Lower the significance level for all tests (Bonferroni) besides BBSDh, which needs no correction.
@@ -108,12 +117,14 @@ class ShiftDetector:
                 od_decs[dr_ind] = np.max(od_loc_decs)
                 ind_od_decs[dr_ind, :] = od_loc_decs
                 ind_od_p_vals[dr_ind, :] = od_loc_p_vals
+                ind_od_t_vals[dr_ind, :] = od_loc_t_vals
 
             # Same as above ...
             if len(md_loc_decs) > 0:
                 md_decs[dr_ind] = np.max(md_loc_decs)
                 ind_md_decs[dr_ind, :] = md_loc_decs
                 ind_md_p_vals[dr_ind, :] = np.array(md_loc_p_vals)
+                ind_md_t_vals[dr_ind, :] = np.array(md_loc_t_vals)
 
-        return (od_decs, ind_od_decs, ind_od_p_vals), (md_decs, ind_md_decs, ind_md_p_vals), red_dim, self.red_models, val_acc, te_acc
+        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models, val_acc, te_acc
 

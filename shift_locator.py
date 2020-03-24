@@ -85,8 +85,8 @@ class ShiftLocator:
         if self.dc == DifferenceClassifier.FFNNDCL:
             return self.neural_network_difference_detector(X_tr, y_tr, X_te, y_te, balanced=balanced)
         elif self.dc == DifferenceClassifier.FLDA:
-            return self.fisher_lda_difference_detector(X_tr, X_te, balanced=balanced)
-        elif self.ac == AnomalyDetection.OCSVM:
+            return self.fisher_lda_difference_detector(X_tr, y_tr, X_te, y_te, balanced=balanced)
+        elif self.ad == AnomalyDetection.OCSVM:
             return self.one_class_svm(X_tr, X_te, balanced=balanced)
 
     def most_likely_shifted_samples(self, model, X_te_new, y_te_new):
@@ -126,23 +126,23 @@ class ShiftLocator:
             novelties = X_te_new[y_pred_te == -1]
             return novelties, None, -1
 
-    def fisher_lda_difference_detector(self, X_tr, X_te, balanced=False):
-        X_tr_dcl, y_tr_dcl, X_te_dcl, y_te_dcl = self.__prepare_difference_detector(X_tr, X_te, balanced=balanced)
+    def fisher_lda_difference_detector(self, X_tr, y_tr, X_te, y_te, balanced=False):
+        X_tr_dcl, y_tr_dcl, y_tr_old, X_te_dcl, y_te_dcl, y_te_old = self.__prepare_difference_detector(X_tr, y_tr, X_te, y_te, balanced=balanced)
         lda = LinearDiscriminantAnalysis()
         lda.fit(X_tr_dcl, y_tr_dcl)
-        return lda, None, (X_tr_dcl, y_tr_dcl, X_te_dcl, y_te_dcl)
+        return lda, None, (X_tr_dcl, y_tr_dcl, y_tr_old, X_te_dcl, y_te_dcl, y_te_old)
 
-    def neural_network_difference_detector(self, X_tr, y_tr, X_te, y_te, bal=False):
+    def neural_network_difference_detector(self, X_tr, y_tr, X_te, y_te, balanced=False):
         D = X_tr.shape[1]
         X_tr_dcl, y_tr_dcl, y_tr_old, X_te_dcl, y_te_dcl, y_te_old = self.__prepare_difference_detector(X_tr, y_tr,
                                                                                                         X_te, y_te,
-                                                                                                        balanced=bal)
+                                                                                                        balanced=balanced)
 
         lr_reducer = ReduceLROnPlateau(factor=np.sqrt(0.1), cooldown=0, patience=5, min_lr=0.5e-6)
         early_stopper = EarlyStopping(min_delta=0.001, patience=10)
         batch_size = 128
         nb_classes = 2
-        epochs = 200
+        epochs = 2 # 200
         
         model = keras_resnet.models.ResNet18(keras.layers.Input(self.orig_dims), classes=nb_classes)
         model.compile(loss='categorical_crossentropy',

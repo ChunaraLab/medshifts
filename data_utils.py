@@ -5,14 +5,59 @@
 import numpy as np
 import scipy.io
 from math import ceil
+from sklearn.impute import SimpleImputer
 
 from keras.datasets import mnist, cifar10, cifar100, boston_housing, fashion_mnist
 from keras.preprocessing.image import ImageDataGenerator
+
+import pandas as pd
 
 # -------------------------------------------------
 # DATA UTILS
 # -------------------------------------------------
 
+# Define proportion of examples in train set, 1-TRAIN_PROP in validation
+TRAIN_PROP = 0.99
+
+# Define feature groups
+# 'ventdays'
+FeatureGroups = {
+    'outcome': 'death',
+    'hospital': ['hospitalid', 'hosp_los'],
+    'labs': ['albumin_first_early',
+       'bands_first_early', 'bicarbonate_first_early', 'bilirubin_first_early',
+       'bun_first_early', 'calcium_first_early', 'creatinine_first_early',
+       'hematocrit_first_early',
+       'hemoglobin_first_early', 'inr_first_early', 'lactate_first_early',
+       'platelet_first_early', 'potassium_first_early', 'sodium_first_early',
+       'wbc_first_early',
+       'albumin_last_early', 'bands_last_early',
+       'bicarbonate_last_early', 'bilirubin_last_early', 'bun_last_early',
+       'calcium_last_early', 'creatinine_last_early',
+       'hematocrit_last_early', 'hemoglobin_last_early', 'inr_last_early',
+       'lactate_last_early', 'platelet_last_early', 'potassium_last_early',
+       'sodium_last_early', 'wbc_last_early'],
+    'vitals': ['heartrate_first',
+       'sysbp_first', 'diasbp_first', 'meanbp_first', 'resprate_first',
+       'tempc_first', 'spo2_first', 'bg_pao2_first_early',
+       'bg_paco2_first_early', 'bg_pao2fio2ratio_first_early',
+       'bg_ph_first_early', 'bg_baseexcess_first_early', 'glucose_first_early',
+       'heartrate_last', 'sysbp_last', 'diasbp_last',
+       'meanbp_last', 'resprate_last', 'tempc_last', 'spo2_last',
+       'bg_pao2_last_early', 'bg_paco2_last_early',
+       'bg_pao2fio2ratio_last_early', 'bg_ph_last_early',
+       'bg_baseexcess_last_early', 'glucose_last_early',
+       'heartrate_min', 'sysbp_min',
+       'diasbp_min', 'meanbp_min', 'resprate_min', 'tempc_min', 'spo2_min',
+       'heartrate_max', 'sysbp_max', 'diasbp_max', 'meanbp_max',
+       'resprate_max', 'tempc_max', 'spo2_max',
+       'urineoutput_sum'],
+    'demo': ['is_female', 'age', 'race_black', 'race_hispanic', 'race_asian', 'race_other'],
+    'others': ['electivesurgery']
+}
+
+HospitalIDs = [73, 264, 338, 443, 458, 420, 252, 300, 122, 243, 188, 449, 208,
+       307, 416, 413, 394, 199, 345]
 
 def __unison_shuffled_copies(a, b):
     assert len(a) == len(b)
@@ -43,6 +88,91 @@ def random_shuffle_and_split(x_train, y_train, x_test, y_test, split_index):
 
     return (x_train, y_train), (x_test, y_test)
 
+def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=False):
+    '''
+    :param hosp_train, hosp_test: hospital IDs to include in train and test set
+    :param min_trans: minimum transactions per hospital for inclusion
+    '''
+    x_train, y_train, x_test, y_test = None, None, None, None
+    external_dataset_path = './datasets/'
+    nb_classes = 2
+    if dataset == 'eicu':
+        '''
+        From https://github.com/alistairewj/icu-model-transfer/blob/master/evaluate-model.ipynb
+        '''
+        df_eicu = pd.read_csv(external_dataset_path + 'X_eicu_day1.csv.gz', sep=',', index_col=0)
+        # hosp_to_keep = df_eicu['hospitalid'].value_counts()
+        # hosp_to_keep = hosp_to_keep[hosp_to_keep>=min_trans].index.values
+        # print('Retaining {} of {} hospitals with at least 100 patients.'.format(
+        #     len(hosp_to_keep), df_eicu['hospitalid'].nunique()))
+
+        df_eicu_train = df_eicu.loc[df_eicu['hospitalid'].isin(np.array(hosp_train)), :]
+        df_eicu_test = df_eicu.loc[df_eicu['hospitalid'].isin(np.array(hosp_test)), :]
+
+        var_other = ['hospitalid', 'death', 'hosp_los', 'ventdays']
+        target = FeatureGroups['outcome']
+        features = []
+        for group in feature_set:
+            features += FeatureGroups[group]
+
+        # Extract required features. Remove target and other vars
+        y_train = df_eicu_train[target].values
+        x_train = df_eicu_train.drop(var_other,axis=1)
+        x_train = df_eicu_train[features].values
+
+        y_test = df_eicu_test[target].values
+        x_test = df_eicu_test.drop(var_other,axis=1)
+        x_test = df_eicu_test[features].values
+
+        # Remove features with all nan from BOTH train and test
+        all_nan_train = np.all(np.isnan(x_train), axis=0)
+        all_nan_test = np.all(np.isnan(x_test), axis=0)
+        all_nan = np.logical_or(all_nan_train, all_nan_test)
+        x_train = x_train[:, ~all_nan]
+        x_test = x_test[:, ~all_nan]
+        print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
+
+        # Impute NaN by mean of column
+        imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+        x_train = imp.fit(x_train).transform(x_train)
+
+        imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+        x_test = imp.fit(x_test).transform(x_test)
+
+        # # Split into train and test
+        # idx = np.random.permutation(x_eicu.shape[0])
+        # split_idx = int(0.8*x_eicu.shape[0])
+        # train_idx, test_idx = idx[:split_idx], idx[split_idx:]
+        # x_train, y_train = x_eicu[train_idx,:], y_eicu[train_idx]
+        # x_test, y_test = x_eicu[test_idx,:], y_eicu[test_idx]
+
+    if shuffle:
+        (x_train, y_train), (x_test, y_test) = random_shuffle_and_split(x_train, y_train, x_test, y_test, len(x_train))
+
+    # Add 3-way split
+    train_size = int(len(x_train)*TRAIN_PROP)
+    x_train_spl = np.split(x_train, [train_size])
+    y_train_spl = np.split(y_train, [train_size])
+    x_train = x_train_spl[0]
+    x_val = x_train_spl[1]
+    y_train = y_train_spl[0]
+    y_val = y_train_spl[1]
+
+    orig_dims = x_train.shape[1:]
+
+    # Reshape to matrix form
+    x_train = x_train.reshape((len(x_train), np.prod(x_train.shape[1:])))
+    x_val = x_val.reshape((len(x_val), np.prod(x_val.shape[1:])))
+    x_test = x_test.reshape((len(x_test), np.prod(x_test.shape[1:])))
+    y_train = y_train.reshape(len(y_train))
+    y_val = y_val.reshape(len(y_val))
+    y_test = y_test.reshape(len(y_test))
+    
+    print('orig_dims', orig_dims)
+    print('new_dims train, val, test x, y', x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
+
+    return (x_train, y_train), (x_val, y_val), (x_test, y_test), orig_dims, nb_classes
+
 
 def import_dataset(dataset, shuffle=False):
     x_train, y_train, x_test, y_test = None, None, None, None
@@ -54,6 +184,7 @@ def import_dataset(dataset, shuffle=False):
         (x_train, y_train), (x_test, y_test) = mnist.load_data()
         x_train = x_train.reshape(len(x_train), 28, 28, 1)
         x_test = x_test.reshape(len(x_test), 28, 28, 1)
+        x_train, y_train, x_test, y_test = x_train[:10000,], y_train[:10000], x_test[:1000,], y_test[:1000]
     elif dataset == 'mnist_adv':
         (x_train, y_train), (_, _) = mnist.load_data()
         x_test = np.loadtxt(external_dataset_path + 'mnist_X_adversarial.csv', delimiter=',')

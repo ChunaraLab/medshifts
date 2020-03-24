@@ -10,6 +10,7 @@ from shift_applicator import *
 from data_utils import *
 import os
 import sys
+from exp_utils import *
 
 # -------------------------------------------------
 # PLOTTING HELPERS
@@ -70,8 +71,8 @@ def errorfill(x, y, yerr, color=None, alpha_fill=0.2, ax=None, fmt='-o', label=N
 # CONFIG
 # -------------------------------------------------
 
-make_keras_picklable()
-np.set_printoptions(threshold=np.nan)
+# make_keras_picklable()
+np.set_printoptions(threshold=sys.maxsize)
 
 datset = sys.argv[1]
 test_type = sys.argv[3]
@@ -85,7 +86,9 @@ if not os.path.exists(path):
     os.makedirs(path)
 
 # Define DR methods
-dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value, DimensionalityReduction.BBSDh.value]
+# dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value, DimensionalityReduction.BBSDh.value]
+dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
+# dr_techniques = [DimensionalityReduction.BBSDs.value, DimensionalityReduction.BBSDh.value]
 if test_type == 'multiv':
     dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value]
 if test_type == 'univ':
@@ -101,7 +104,8 @@ if test_type == 'multiv':
     md_tests = [MultidimensionalTest.MMD.value]
     samples = [10, 20, 50, 100, 200, 500, 1000]
 else:
-    od_tests = [od.value for od in OnedimensionalTest]
+    # od_tests = [od.value for od in OnedimensionalTest]
+    od_tests = [OnedimensionalTest.KS.value]
     md_tests = []
     samples = [10, 20, 50, 100, 200, 500, 1000, 9000]
 difference_samples = 10
@@ -173,7 +177,7 @@ for shift_idx, shift in enumerate(shifts):
         set_random_seed(rand_run)
 
         # Load data
-        (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims = import_dataset(datset, shuffle=True)
+        (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims, nb_classes = import_dataset(datset, shuffle=True)
         X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
         X_te_orig = normalize_datapoints(X_te_orig, 255.)
         X_val_orig = normalize_datapoints(X_val_orig, 255.)
@@ -181,16 +185,16 @@ for shift_idx, shift in enumerate(shifts):
         # Apply shift
         if shift == 'orig':
             print('Original')
-            (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims = import_dataset(datset)
+            (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims, nb_classes = import_dataset(datset)
             X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
             X_te_orig = normalize_datapoints(X_te_orig, 255.)
             X_val_orig = normalize_datapoints(X_val_orig, 255.)
             X_te_1 = X_te_orig.copy()
             y_te_1 = y_te_orig.copy()
         else:
-            (X_te_1, y_te_1) = apply_shift(X_te_orig, y_te_orig, shift)
+            (X_te_1, y_te_1) = apply_shift(X_te_orig, y_te_orig, shift, orig_dims, datset)
 
-        X_te_2 , y_te_2 = random_shuffle(X_te_1, X_te_1)
+        X_te_2 , y_te_2 = random_shuffle(X_te_1, y_te_1)
 
         # Check detection performance for different numbers of samples from test
         for si, sample in enumerate(samples):
@@ -217,20 +221,20 @@ for shift_idx, shift in enumerate(shifts):
 
             # Detect shift
             shift_detector = ShiftDetector(dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset)
-            (od_decs, ind_od_decs, ind_od_p_vals), (md_decs, ind_md_decs, ind_md_p_vals), red_dim, red_models = shift_detector.detect_data_shift(X_tr_3, y_tr_3, X_val_3, y_val_3, X_te_3, orig_dims)
+            (od_decs, ind_od_decs, ind_od_p_vals), (md_decs, ind_md_decs, ind_md_p_vals), red_dim, red_models, val_acc, te_acc = shift_detector.detect_data_shift(X_tr_3, y_tr_3, X_val_3, y_val_3, X_te_3, y_te_3, orig_dims, nb_classes)
 
             if test_type == 'multiv':
                 print("Shift decision: ", ind_md_decs.flatten())
                 print("Shift p-vals: ", ind_md_p_vals.flatten())
 
-                rand_run_p_vals[si,:,rand_run] = ind_md_p_vals.flatten()
+                rand_run_p_vals[si,:,rand_run] = np.append(ind_md_p_vals.flatten(), -1) # -1 for DimensionalityReduction.Classif
             else:
                 print("Shift decision: ", ind_od_decs.flatten())
                 print("Shift p-vals: ", ind_od_p_vals.flatten())
 
                 # Characterize shift via difference classifier
                 shift_locator = ShiftLocator(orig_dims, dc=DifferenceClassifier.FFNNDCL, sign_level=sign_level)
-                model, score, (X_tr_dcl, y_tr_dcl, X_te_dcl, y_te_dcl) = shift_locator.build_model(X_tr_3, X_te_3)
+                model, score, (X_tr_dcl, y_tr_dcl, y_tr_old, X_te_dcl, y_te_dcl, y_te_old) = shift_locator.build_model(X_tr_3, y_tr_3, X_te_3, y_te_3)
                 test_indices, test_perc, dec, p_val = shift_locator.most_likely_shifted_samples(model, X_te_dcl, y_te_dcl)
 
                 rand_run_p_vals[si,:,rand_run] = np.append(ind_od_p_vals.flatten(), p_val)
@@ -297,8 +301,8 @@ for shift_idx, shift in enumerate(shifts):
 
         np.savetxt("%s/dr_method_p_vals.csv" % rand_run_path, rand_run_p_vals[:,:,rand_run], delimiter=",")
 
-        np.random.seed(seed)
-        set_random_seed(seed)
+        # np.random.seed(seed)
+        # set_random_seed(seed)
 
     mean_p_vals = np.mean(rand_run_p_vals, axis=2)
     std_p_vals = np.std(rand_run_p_vals, axis=2)

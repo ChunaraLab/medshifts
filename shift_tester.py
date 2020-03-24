@@ -67,6 +67,7 @@ class ShiftTester:
 
     def one_dimensional_test(self, X_tr, X_te):
         p_vals = []
+        t_vals = []
 
         # For each dimension we conduct a separate KS test
         for i in range(X_tr.shape[1]):
@@ -83,13 +84,17 @@ class ShiftTester:
                 t_val, _, p_val = anderson_ksamp([feature_tr.tolist(), feature_te.tolist()])
 
             p_vals.append(p_val)
+            t_vals.append(t_val)
 
         # Apply the Bonferroni correction to bound the family-wise error rate. This can be done by picking the minimum
         # p-value from all individual tests.
         p_vals = np.array(p_vals)
         p_val = min(np.min(p_vals), 1.0)
+        
+        t_vals = np.array(t_vals)
+        t_val = np.mean(t_vals) # TODO check min or mean
 
-        return p_val, p_vals
+        return p_val, p_vals, t_val, t_vals
 
     def multi_dimensional_test(self, X_tr, X_te):
 
@@ -137,4 +142,4 @@ class ShiftTester:
                                      norm=2, ret_matrix=True)
             p_val = knn_test.pval(matrix)
             
-        return p_val, np.array([])
+        return p_val, np.array([]), t_val, np.array([])

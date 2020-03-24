@@ -19,6 +19,7 @@ from shared_utils import *
 import os
 
 import keras_resnet.models
+import keras
 
 # -------------------------------------------------
 # SHIFT REDUCTOR
@@ -171,7 +172,7 @@ class ShiftReductor:
 
         if train:
             autoenc.fit(self.X.reshape(len(self.X), self.orig_dims[0], self.orig_dims[1], self.orig_dims[2]), self.X.reshape(len(self.X), self.orig_dims[0], self.orig_dims[1], self.orig_dims[2]),
-                        epochs=200,
+                        epochs=1, #200
                         batch_size=128,
                         validation_data=(self.X_val.reshape(len(self.X_val), self.orig_dims[0], self.orig_dims[1], self.orig_dims[2]), self.X_val.reshape(len(self.X_val), self.orig_dims[0], self.orig_dims[1], self.orig_dims[2])),
                         shuffle=True)
@@ -188,7 +189,7 @@ class ShiftReductor:
         early_stopper = EarlyStopping(min_delta=0.001, patience=10)
         batch_size = 128
         nb_classes = len(np.unique(self.y))
-        epochs = 200
+        epochs = 1 # 200
         y_loc = np_utils.to_categorical(self.y, nb_classes)
         y_val_loc = np_utils.to_categorical(self.y_val, nb_classes)
 

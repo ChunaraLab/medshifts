@@ -13,3 +13,6 @@ __pycache__
 paper_results
 adv_samples
 
+hosp_results
+saved_models
+datasets
