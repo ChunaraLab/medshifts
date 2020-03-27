@@ -10,7 +10,6 @@ __pycache__
 .vscode
 
 # Project
-paper_results
 adv_samples
 
 hosp_results

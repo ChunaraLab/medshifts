@@ -2,6 +2,9 @@
 Written by Stephan Rabanser https://github.com/steverab/failing-loudly
 Modifed
 
+Usage:
+python generate_hosp_plot.py eicu orig multiv
+
 Plot test results across hospitals
 '''
 
@@ -86,7 +89,7 @@ np.set_printoptions(threshold=sys.maxsize)
 datset = sys.argv[1]
 test_type = sys.argv[3]
 
-path = './hosp_results_parallel_5/'
+path = './hosp_results_parallel/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -102,7 +105,7 @@ feature_sets = [['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo'
 
 # Define train-test pairs of hospitals 
 hosp_pairs = []
-HospitalIDs = HospitalIDs[:5]
+HospitalIDs = HospitalIDs[:11]
 # HospitalIDs = [i for i in HospitalIDs if i not in [413,394,199,345]]
 for hi in range(len(HospitalIDs)):
     for hj in range(len(HospitalIDs)):

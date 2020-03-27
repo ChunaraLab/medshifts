@@ -4,17 +4,20 @@ Modifed
 
 Detect shifts across hospitals
 
+Usage:
+python hosp_pipeline_parallel.py eicu orig multiv mice
+
 # TODO
-columns with all missing values, remove columns in both train and test?
+mice, acc BBSDh, univariate
+add gcs in data file
+mean_p_vals = -1 for 73, 338
+
 impute missing values in shift_reductor pca, srp, lda
 number of dims in shift_detector
-use validation set
-load data once
-mean_p_vals = -1 for 73, 338
 shift_tester.test_shift one dim check if t_val correct after FWER correction
 shift_tester.test_chi2_shift one dim return t_val
-
-mice, acc BBSDh, univ
+use validation set
+load data once
 '''
 
 import numpy as np
@@ -99,6 +102,7 @@ np.set_printoptions(threshold=sys.maxsize)
 
 datset = sys.argv[1]
 test_type = sys.argv[3]
+missing_imp = sys.argv[4]
 
 path = './hosp_results_parallel/'
 path += test_type + '/'
@@ -155,6 +159,11 @@ else:
     samples = [1000]
     # samples = [10, 20, 50, 100, 200, 500]
 difference_samples = 10
+
+if missing_imp == 'mice':
+    missing_techniques = ['org', 'mice']
+else:
+    missing_techniques = ['org']
 
 # Number of random runs to average results over    
 random_runs = 5

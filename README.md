@@ -1,3 +1,24 @@
+# medshifts
+Modified from repo https://github.com/steverab/failing-loudly by Stephan Rabanser.
+The scripts perform two-sample testing to detect shifts in multi-variate distributions and plot results.
+
+To run main script:
+```
+python hosp_pipeline.py eicu orig multiv mice
+```
+
+To run parallel version:
+```
+python hosp_pipeline_parallel.py eicu orig multiv mice
+```
+
+To generate heat maps:
+```
+python generate_hosp_plot.py eicu orig multiv
+``
+
+Original README.md:
+
 # failing-loudly
 This repository provides code, datasets, and pretrained models for our paper **"Failing Loudly: An Empirical Study of Methods for Detecting Dataset Shift"**, to be presented at Neural Information Processing Systems (NeurIPS) 2019.
 

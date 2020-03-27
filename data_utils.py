@@ -10,6 +10,11 @@ from sklearn.impute import SimpleImputer
 from keras.datasets import mnist, cifar10, cifar100, boston_housing, fashion_mnist
 from keras.preprocessing.image import ImageDataGenerator
 
+# To use the experimental IterativeImputer, we need to explicitly ask for it:
+from sklearn.experimental import enable_iterative_imputer  # noqa
+from sklearn.impute import (
+    SimpleImputer, KNNImputer, IterativeImputer, MissingIndicator)
+
 import pandas as pd
 
 # -------------------------------------------------
