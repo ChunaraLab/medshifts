@@ -12,6 +12,7 @@ mice, acc BBSDh, univariate
 add gcs in data file
 mean_p_vals = -1 for 73, 338
 
+DimensionalityReduction.NoRed in shift_reductor used to calculate accuracy. calculate in separate class. reduce return prob instead of pred
 impute missing values in shift_reductor pca, srp, lda
 number of dims in shift_detector
 shift_tester.test_shift one dim check if t_val correct after FWER correction
@@ -196,9 +197,6 @@ def test_hosp_pair(feature_set_idx, feature_set, hosp_pair_idx, hosp_train, hosp
     samples_shifts_rands_dr_tech = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques) + 1)) * (-1) # TODO add hosp_pair
     samples_shifts_rands_dr_tech_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques) + 1)) * (-1) # TODO add hosp_pair
 
-    red_dim = -1
-    red_models = [None] * len(DimensionalityReduction)
-
     for shift_idx, shift in enumerate(shifts):
 
         shift_path =  hosp_path + shift + '/'
@@ -239,6 +237,9 @@ def test_hosp_pair(feature_set_idx, feature_set, hosp_pair_idx, hosp_train, hosp
 
             X_te_2 , y_te_2 = random_shuffle(X_te_1, y_te_1)
 
+            red_dim = -1
+            red_models = [None] * len(DimensionalityReduction) # new model for each shift, random run
+
             # Check detection performance for different numbers of samples from test
             for si, sample in enumerate(samples):
 
@@ -249,15 +250,14 @@ def test_hosp_pair(feature_set_idx, feature_set, hosp_pair_idx, hosp_train, hosp
                     os.makedirs(sample_path)
 
                 X_te_3 = X_te_2[:sample,:]
-                x_te_3_samp = X_te_3[0]
                 y_te_3 = y_te_2[:sample]
 
                 if test_type == 'multiv':
                     X_val_3 = X_val_orig[:1000,:]
                     y_val_3 = y_val_orig[:1000]
                 else:
-                    X_val_3 = np.copy(X_val_orig)
-                    y_val_3 = np.copy(y_val_orig)
+                    X_val_3 = X_val_orig[:sample,:]
+                    y_val_3 = y_val_orig[:sample]
 
                 X_tr_3 = np.copy(X_tr_orig)
                 y_tr_3 = np.copy(y_tr_orig)

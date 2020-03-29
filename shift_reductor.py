@@ -6,6 +6,12 @@ import numpy as np
 
 from sklearn.decomposition import PCA
 from sklearn.random_projection import SparseRandomProjection
+from sklearn import linear_model
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+from sklearn import metrics
+import joblib
 
 from keras.layers import Input, Dense, Dropout, Activation, Conv2D, MaxPooling2D, UpSampling2D
 from keras.models import Model, Sequential
@@ -75,6 +81,11 @@ class ShiftReductor:
             if os.path.exists(self.mod_path):
                 return load_model(self.mod_path, custom_objects=keras_resnet.custom_objects)
             return self.neural_network_classifier(train=True)
+        elif self.dr_tech == DimensionalityReduction.NoRed: # TODO calculate accuracy in separate class than dimension reduction
+            self.mod_path = './saved_models/' + self.datset + '_logreg_model.joblib'
+            if os.path.exists(self.mod_path):
+                return joblib.load(self.mod_path)
+            return self.logreg_classifier(train=True)
 
     # Given a model to reduce dimensionality and some data, we have to perform different operations depending on
     # the DR method used.
@@ -93,6 +104,25 @@ class ShiftReductor:
             pred = model.predict(X)
             pred = np.argmax(pred, axis=1)
             return pred
+
+    def evaluate(self, model, X, y):
+        if self.dr_tech == DimensionalityReduction.NoRed: # TODO calculate accuracy in separate class than dimension reduction
+            prob = model.predict_proba(X)[:,1]
+            d = dict()
+    
+            # calculate SMR
+            d['count'] = y.count()
+            d['outcome'] = y.sum()
+            
+            d['smr'] = y.sum() / prob.sum()
+            d['mse'] = metrics.mean_squared_error(y, prob)
+            d['mae'] = metrics.mean_absolute_error(y, prob)
+            d['logloss'] = metrics.log_loss(y, prob)
+            if len(np.unique(y))<=1:
+                d['auc'] = np.nan
+            else:
+                d['auc'] = metrics.roc_auc_score(y, prob)
+            return d['auc'], d['smr'] # TODO return other metrics also
 
     def sparse_random_projection(self):
         srp = SparseRandomProjection(n_components=self.dr_amount)
@@ -208,3 +238,20 @@ class ShiftReductor:
         model.save(self.mod_path)
 
         return model
+
+    # Our label classifier constitutes of a simple logistic regression.
+    def logreg_classifier(self, train=True):
+        # define model pipeline
+        base_mdl = linear_model.LogisticRegression(penalty='l2', solver='lbfgs')
+        
+        mdl = Pipeline([("imputer", SimpleImputer()),
+                    ("scaler", StandardScaler()),
+                    ('model', base_mdl)])
+
+        # train model
+        mdl = mdl.fit(self.X, self.y)
+        
+        # save model
+        joblib.dump(mdl, self.mod_path)
+
+        return mdl

@@ -57,7 +57,7 @@ class ShiftDetector:
             red_dim = shift_reductor.dr_amount
             shift_reductor_model = None
             if self.red_models[dr_ind] is None:
-                shift_reductor_model = shift_reductor.fit_reductor()
+                shift_reductor_model = shift_reductor.fit_reductor() # TODO calculate accuracy in separate class than dimension reduction
                 self.red_models[dr_ind] = shift_reductor_model
             else:
                 shift_reductor_model = self.red_models[dr_ind]
@@ -70,6 +70,9 @@ class ShiftDetector:
             if dr_technique == DimensionalityReduction.BBSDh.value:
                 val_acc = np.sum(np.equal(X_tr_red, y_val).astype(int))/X_tr_red.shape[0]
                 te_acc = np.sum(np.equal(X_te_red, y_te).astype(int))/X_te_red.shape[0]
+            elif dr_technique == DimensionalityReduction.NoRed.value: # TODO calculate accuracy in separate class than dimension reduction
+                val_auc, val_smr = shift_reductor.evaluate(shift_reductor_model, X_val, y_val)
+                te_auc, te_smr = shift_reductor.evaluate(shift_reductor_model, X_te, y_te)
 
             od_loc_p_vals = []
             od_loc_t_vals = []

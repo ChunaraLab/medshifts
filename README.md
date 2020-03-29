@@ -15,7 +15,7 @@ python hosp_pipeline_parallel.py eicu orig multiv mice
 To generate heat maps:
 ```
 python generate_hosp_plot.py eicu orig multiv
-``
+```
 
 Original README.md:
 

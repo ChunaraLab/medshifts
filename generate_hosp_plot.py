@@ -215,14 +215,15 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
                     hosp_pair_tval[hosp_train_idx, hosp_test_idx] = mean_t_vals
 
                 hosp_pair_pval = pd.DataFrame(hosp_pair_pval, columns=HospitalIDs, index=HospitalIDs)
-                fig = sns.heatmap(hosp_pair_pval, linewidths=0.5)
+                cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
+                fig = sns.heatmap(hosp_pair_pval, linewidths=0.5, cmap=cmap)
                 plt.xlabel('Target hospital')
                 plt.ylabel('Source hospital')
                 plt.savefig("%s/%s_%s_%s_p_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                 plt.clf()
 
                 hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDs, index=HospitalIDs)
-                fig = sns.heatmap(hosp_pair_tval, linewidths=0.5)
+                fig = sns.heatmap(hosp_pair_tval, linewidths=0.5, cmap=cmap)
                 plt.xlabel('Target hospital')
                 plt.ylabel('Source hospital')
                 plt.savefig("%s/%s_%s_%s_t_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
