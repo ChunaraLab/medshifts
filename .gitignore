@@ -13,5 +13,6 @@ __pycache__
 adv_samples
 
 hosp_results
+hosp_results_parallel
 saved_models
 datasets

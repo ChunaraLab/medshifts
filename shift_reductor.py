@@ -6,7 +6,7 @@ import numpy as np
 
 from sklearn.decomposition import PCA
 from sklearn.random_projection import SparseRandomProjection
-from sklearn import linear_model
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
@@ -82,9 +82,9 @@ class ShiftReductor:
                 return load_model(self.mod_path, custom_objects=keras_resnet.custom_objects)
             return self.neural_network_classifier(train=True)
         elif self.dr_tech == DimensionalityReduction.NoRed: # TODO calculate accuracy in separate class than dimension reduction
-            self.mod_path = './saved_models/' + self.datset + '_logreg_model.joblib'
-            if os.path.exists(self.mod_path):
-                return joblib.load(self.mod_path)
+            # self.mod_path = './saved_models/' + self.datset + '_logreg_model.joblib'
+            # if os.path.exists(self.mod_path):
+            #     return joblib.load(self.mod_path)
             return self.logreg_classifier(train=True)
 
     # Given a model to reduce dimensionality and some data, we have to perform different operations depending on
@@ -111,7 +111,7 @@ class ShiftReductor:
             d = dict()
     
             # calculate SMR
-            d['count'] = y.count()
+            d['count'] = y.shape[0] # TODO count non-NA elements only
             d['outcome'] = y.sum()
             
             d['smr'] = y.sum() / prob.sum()
@@ -242,9 +242,11 @@ class ShiftReductor:
     # Our label classifier constitutes of a simple logistic regression.
     def logreg_classifier(self, train=True):
         # define model pipeline
-        base_mdl = linear_model.LogisticRegression(penalty='l2', solver='lbfgs')
+        base_mdl = LogisticRegression(penalty='l2', solver='lbfgs')
         
-        mdl = Pipeline([("imputer", SimpleImputer()),
+        # TODO impute here
+        mdl = Pipeline([
+            # ("imputer", SimpleImputer()),
                     ("scaler", StandardScaler()),
                     ('model', base_mdl)])
 
@@ -252,6 +254,6 @@ class ShiftReductor:
         mdl = mdl.fit(self.X, self.y)
         
         # save model
-        joblib.dump(mdl, self.mod_path)
+        # joblib.dump(mdl, self.mod_path)
 
         return mdl

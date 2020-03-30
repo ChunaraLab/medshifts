@@ -11,6 +11,7 @@ Plot test results across hospitals
 import numpy as np
 import seaborn as sns
 import pandas as pd
+from itertools import combinations
 from tensorflow import set_random_seed
 seed = 1
 np.random.seed(seed)
@@ -89,7 +90,7 @@ np.set_printoptions(threshold=sys.maxsize)
 datset = sys.argv[1]
 test_type = sys.argv[3]
 
-path = './hosp_results_parallel/'
+path = './hosp_results_parallel_11/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -101,11 +102,14 @@ if not os.path.exists(path):
 # feature_sets = [['labs','vitals','demo','others']]
 # feature_sets = [['labs','vitals','demo','others'], ['labs']]
 # feature_sets = [['labs','vitals','demo','others'], ['labs'], ['vitals']]
-feature_sets = [['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo']]
+# feature_sets = [['saps2']]
+# feature_sets = [['saps2'], ['labs','vitals','demo','others']]
+feature_sets = [['saps2'], ['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo']]
 
 # Define train-test pairs of hospitals 
+NUM_HOSPITALS_TOP = 11 # hospitals with records >= 1000
 hosp_pairs = []
-HospitalIDs = HospitalIDs[:11]
+HospitalIDs = HospitalIDs[:NUM_HOSPITALS_TOP]
 # HospitalIDs = [i for i in HospitalIDs if i not in [413,394,199,345]]
 for hi in range(len(HospitalIDs)):
     for hj in range(len(HospitalIDs)):
@@ -164,8 +168,9 @@ else:
 # PIPELINE START
 # -------------------------------------------------
 
-samples_shifts_rands_dr_tech_feats_hosps = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques) + 1, len(feature_sets), len(hosp_pairs))) * (-1)
-samples_shifts_rands_dr_tech_feats_hosps_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques) + 1, len(feature_sets), len(hosp_pairs))) * (-1)
+samples_shifts_rands_dr_tech_feats_hosps = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot), len(feature_sets), len(hosp_pairs))) * (-1)
+samples_shifts_rands_dr_tech_feats_hosps_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot), len(feature_sets), len(hosp_pairs))) * (-1)
+samples_shifts_rands_feats_hosps_te_acc = np.ones((len(samples), len(shifts), random_runs, len(feature_sets), len(hosp_pairs), 2)) * (-1) # 0-auc, 1-smr # TODO add auc, smr, p-val, mmd in same array. add hosp_pair
 
 for feature_set_idx, feature_set in enumerate(feature_sets):
 
@@ -181,11 +186,16 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
         samples_shifts_rands_dr_tech = np.load("%s/samples_shifts_rands_dr_tech.npy" % (hosp_path))
         samples_shifts_rands_dr_tech_t_val = np.load("%s/samples_shifts_rands_dr_tech_t_val.npy" % (hosp_path))
 
+        samples_shifts_rands_te_acc = np.load("%s/samples_shifts_rands_te_acc.npy" % (hosp_path))
+
         samples_shifts_rands_dr_tech_feats_hosps[:,:,:,:,feature_set_idx,hosp_pair_idx] = samples_shifts_rands_dr_tech
         samples_shifts_rands_dr_tech_feats_hosps_t_val[:,:,:,:,feature_set_idx,hosp_pair_idx] = samples_shifts_rands_dr_tech_t_val
 
+        samples_shifts_rands_feats_hosps_te_acc[:,:,:,feature_set_idx,hosp_pair_idx,:] = samples_shifts_rands_te_acc
+
 np.save("%s/samples_shifts_rands_dr_tech_feats_hosps.npy" % (path), samples_shifts_rands_dr_tech_feats_hosps)
 np.save("%s/samples_shifts_rands_dr_tech_feats_hosps_t_val.npy" % (path), samples_shifts_rands_dr_tech_feats_hosps_t_val)
+np.save("%s/samples_shifts_rands_feats_hosps_te_acc.npy" % (path), samples_shifts_rands_feats_hosps_te_acc)
 
 # Feat, dr, shift, sample - mean
 for feature_set_idx, feature_set in enumerate(feature_sets):
@@ -200,6 +210,10 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
 
                 hosp_pair_pval = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
                 hosp_pair_tval = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
+
+                hosp_pair_auc = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
+                hosp_pair_smr = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
+
                 for hosp_pair_idx, (hosp_train_idx, hosp_test_idx, hosp_train, hosp_test) in enumerate(hosp_pairs):
             
                     feats_dr_tech_shifts_samples_results = samples_shifts_rands_dr_tech_feats_hosps[si,shift_idx,:,dr_idx,feature_set_idx,hosp_pair_idx]
@@ -211,20 +225,85 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
                     # if mean_p_vals==-1:
                     #     print(hosp_train, hosp_test)
                     #     mean_p_vals = 1
-                    hosp_pair_pval[hosp_train_idx, hosp_test_idx] = mean_p_vals
+                    hosp_pair_pval[hosp_train_idx, hosp_test_idx] = mean_p_vals < sign_level
                     hosp_pair_tval[hosp_train_idx, hosp_test_idx] = mean_t_vals
 
-                hosp_pair_pval = pd.DataFrame(hosp_pair_pval, columns=HospitalIDs, index=HospitalIDs)
-                cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
-                fig = sns.heatmap(hosp_pair_pval, linewidths=0.5, cmap=cmap)
-                plt.xlabel('Target hospital')
-                plt.ylabel('Source hospital')
-                plt.savefig("%s/%s_%s_%s_p_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                plt.clf()
+                    if dr == DimensionalityReduction.NoRed.value: # TODO run auc smr plots only once in dr_techniques_plot
+                        feats_shifts_samples_te_auc = samples_shifts_rands_feats_hosps_te_acc[si,shift_idx,:,feature_set_idx,hosp_pair_idx,0]
+                        feats_shifts_samples_te_smr = samples_shifts_rands_feats_hosps_te_acc[si,shift_idx,:,feature_set_idx,hosp_pair_idx,1]
 
-                hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDs, index=HospitalIDs)
-                fig = sns.heatmap(hosp_pair_tval, linewidths=0.5, cmap=cmap)
-                plt.xlabel('Target hospital')
-                plt.ylabel('Source hospital')
-                plt.savefig("%s/%s_%s_%s_t_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                plt.clf()
+                        mean_te_auc = np.mean(feats_shifts_samples_te_auc)
+                        std_te_auc = np.std(feats_shifts_samples_te_auc)
+                        mean_te_smr = np.mean(feats_shifts_samples_te_smr)
+                        std_te_smr = np.std(feats_shifts_samples_te_smr)
+
+                        hosp_pair_auc[hosp_train_idx, hosp_test_idx] = mean_te_auc
+                        hosp_pair_smr[hosp_train_idx, hosp_test_idx] = mean_te_smr
+
+                # hosp_avg_pval = hosp_pair_pval.mean(axis=1)
+                # hosp_pair_pval = pd.DataFrame(hosp_pair_pval, columns=HospitalIDs, index=HospitalIDs)
+                # hosp_pair_pval.to_csv("%s/%s_%s_%s_p_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
+                # fig = sns.heatmap(hosp_pair_pval, linewidths=0.5, cmap=cmap)
+                # plt.xlabel('Target hospital')
+                # plt.ylabel('Source hospital')
+                # plt.savefig("%s/%s_%s_%s_p_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                # plt.clf()
+
+                # Minimum of the pairwise average tval in subsets of 5 hospitals
+                HospitalIDs_ = np.array(HospitalIDs)
+                avg_tval_subset = []
+                for subs in combinations(range(len(HospitalIDs_)), 5):
+                    avg_tval_subset.append((subs, hosp_pair_tval[np.ix_(subs,subs)].mean()))
+                avg_tval_subset_sorted = sorted(avg_tval_subset, key=lambda x: x[1])
+                avg_tval_subset_sorted = [(HospitalIDs_[np.array(subs)],mmd) for subs,mmd in avg_tval_subset_sorted]
+                avg_tval_subset_sorted = pd.DataFrame(avg_tval_subset_sorted, columns=['HospitalIDs','average MMD'])
+                avg_tval_subset_sorted.to_csv("%s/%s_%s_%s_t_val_min_subset.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=False)
+
+                # hosp_avg_tval = hosp_pair_tval.mean(axis=1)
+                # hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDs, index=HospitalIDs)
+                # hosp_pair_tval.to_csv("%s/%s_%s_%s_t_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                # fig = sns.heatmap(hosp_pair_tval, linewidths=0.5, cmap=cmap)
+                # plt.xlabel('Target hospital')
+                # plt.ylabel('Source hospital')
+                # plt.savefig("%s/%s_%s_%s_t_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                # plt.clf()
+
+                # if dr == DimensionalityReduction.NoRed.value: # TODO run auc smr plots only once in dr_techniques_plot
+                #     hosp_avg_auc = hosp_pair_auc.mean(axis=1)
+                #     hosp_min_auc = hosp_pair_auc.min(axis=1)
+                #     hosp_pair_auc = pd.DataFrame(hosp_pair_auc, columns=HospitalIDs, index=HospitalIDs)
+                #     hosp_pair_auc.to_csv("%s/%s_%s_%s_te_auc_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                #     # fig = sns.heatmap(hosp_pair_auc, linewidths=0.5, cmap=cmap)
+                #     # plt.xlabel('Target hospital')
+                #     # plt.ylabel('Source hospital')
+                #     # plt.savefig("%s/%s_%s_%s_te_auc_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                #     # plt.clf()
+
+                #     hosp_avg_smr = hosp_pair_smr.mean(axis=1)
+                #     hosp_pair_smr = pd.DataFrame(hosp_pair_smr, columns=HospitalIDs, index=HospitalIDs)
+                #     hosp_pair_smr.to_csv("%s/%s_%s_%s_te_smr_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                #     # fig = sns.heatmap(hosp_pair_smr, linewidths=0.5, cmap=cmap)
+                #     # plt.xlabel('Target hospital')
+                #     # plt.ylabel('Source hospital')
+                #     # plt.savefig("%s/%s_%s_%s_te_smr_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                #     # plt.clf()
+
+                #     # Scatter plot
+                #     h_stats = pd.DataFrame(data=np.concatenate(\
+                #         [hosp_avg_tval[:,np.newaxis], hosp_avg_auc[:,np.newaxis], hosp_min_auc[:,np.newaxis],\
+                #             hosp_avg_smr[:,np.newaxis]],axis=1),\
+                #         columns=['MMD','AUC','AUC_min','SMR'],\
+                #         index=HospitalIDs)
+                    
+                #     fig = sns.scatterplot(data=h_stats, x='MMD', y='AUC', s=100, alpha=0.6)
+                #     plt.xlabel('MMD, average across hospital pairs')
+                #     plt.ylabel('AUC')
+                #     plt.savefig("%s/%s_%s_%s_mmd_acc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                #     plt.clf()
+
+                #     fig = sns.scatterplot(data=h_stats, x='MMD', y='AUC_min', s=100, alpha=0.6)
+                #     plt.xlabel('MMD, min across hospital pairs')
+                #     plt.ylabel('AUC')
+                #     plt.savefig("%s/%s_%s_%s_mmd_minacc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                #     plt.clf()

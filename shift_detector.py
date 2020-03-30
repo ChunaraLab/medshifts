@@ -42,6 +42,10 @@ class ShiftDetector:
         
         val_acc = None
         te_acc = None
+        tr_auc = None
+        te_auc = None
+        tr_smr = None
+        te_smr = None
 
         # For all dimensionality reduction techniques:
         # 1. Train/Load model.
@@ -63,15 +67,15 @@ class ShiftDetector:
                 shift_reductor_model = self.red_models[dr_ind]
 
             # Reduce validation and test set.
-            X_tr_red = shift_reductor.reduce(shift_reductor_model, X_val)
-            X_te_red = shift_reductor.reduce(shift_reductor_model, X_te)
+            X_tr_red = shift_reductor.reduce(shift_reductor_model, X_tr) # reduce train dataset which is also used for fitting dimension reduction model
+            X_te_red = shift_reductor.reduce(shift_reductor_model, X_te) # TODO reduce test dataset using model trained on test dataset
 
             # Compute classification accuracy on both sets for malignancy detection.
             if dr_technique == DimensionalityReduction.BBSDh.value:
                 val_acc = np.sum(np.equal(X_tr_red, y_val).astype(int))/X_tr_red.shape[0]
                 te_acc = np.sum(np.equal(X_te_red, y_te).astype(int))/X_te_red.shape[0]
             elif dr_technique == DimensionalityReduction.NoRed.value: # TODO calculate accuracy in separate class than dimension reduction
-                val_auc, val_smr = shift_reductor.evaluate(shift_reductor_model, X_val, y_val)
+                tr_auc, tr_smr = shift_reductor.evaluate(shift_reductor_model, X_tr, y_tr)
                 te_auc, te_smr = shift_reductor.evaluate(shift_reductor_model, X_te, y_te)
 
             od_loc_p_vals = []
@@ -129,5 +133,5 @@ class ShiftDetector:
                 ind_md_p_vals[dr_ind, :] = np.array(md_loc_p_vals)
                 ind_md_t_vals[dr_ind, :] = np.array(md_loc_t_vals)
 
-        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models, val_acc, te_acc
+        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models, tr_auc, te_auc, tr_smr, te_smr
 

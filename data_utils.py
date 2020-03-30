@@ -44,21 +44,35 @@ FeatureGroups = {
        'sodium_last_early', 'wbc_last_early'],
     'vitals': ['heartrate_first',
        'sysbp_first', 'diasbp_first', 'meanbp_first', 'resprate_first',
-       'tempc_first', 'spo2_first', 'bg_pao2_first_early',
+       'tempc_first', 'spo2_first', 'gcs_first', 'bg_pao2_first_early',
        'bg_paco2_first_early', 'bg_pao2fio2ratio_first_early',
        'bg_ph_first_early', 'bg_baseexcess_first_early', 'glucose_first_early',
        'heartrate_last', 'sysbp_last', 'diasbp_last',
-       'meanbp_last', 'resprate_last', 'tempc_last', 'spo2_last',
+       'meanbp_last', 'resprate_last', 'tempc_last', 'spo2_last', 'gcs_last',
        'bg_pao2_last_early', 'bg_paco2_last_early',
        'bg_pao2fio2ratio_last_early', 'bg_ph_last_early',
        'bg_baseexcess_last_early', 'glucose_last_early',
        'heartrate_min', 'sysbp_min',
-       'diasbp_min', 'meanbp_min', 'resprate_min', 'tempc_min', 'spo2_min',
+       'diasbp_min', 'meanbp_min', 'resprate_min', 'tempc_min', 'spo2_min', 'gcs_min',
        'heartrate_max', 'sysbp_max', 'diasbp_max', 'meanbp_max',
-       'resprate_max', 'tempc_max', 'spo2_max',
+       'resprate_max', 'tempc_max', 'spo2_max', 'gcs_max',
        'urineoutput_sum'],
     'demo': ['is_female', 'age', 'race_black', 'race_hispanic', 'race_asian', 'race_other'],
-    'others': ['electivesurgery']
+    'others': ['electivesurgery'],
+    'saps2': ['heartrate_min',
+       'sysbp_min',
+       'tempc_max',
+       'bg_pao2fio2ratio_min',
+       'bun_max',
+       'urineoutput_sum',
+       'sodium_min',
+       'potassium_min',
+       'bicarbonate_min',
+       'bilirubin_max',
+       'wbc_min',
+       'age',
+       'gcs_min',
+       'electivesurgery']
 }
 
 HospitalIDs = [73, 264, 338, 443, 458, 420, 252, 300, 122, 243, 188, 449, 208,
@@ -135,7 +149,7 @@ def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=Fal
         all_nan = np.logical_or(all_nan_train, all_nan_test)
         x_train = x_train[:, ~all_nan]
         x_test = x_test[:, ~all_nan]
-        # print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
+        print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
 
         # Impute NaN by mean of column
         imp = SimpleImputer(missing_values=np.nan, strategy='mean')
@@ -173,7 +187,7 @@ def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=Fal
     y_val = y_val.reshape(len(y_val))
     y_test = y_test.reshape(len(y_test))
     
-    # print('orig_dims, new_dims train, val, test x, y', orig_dims, x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
+    print('hosp_train, hosp_test, orig_dims, new_dims train, val, test x, y', hosp_train, hosp_test, orig_dims, x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
 
     return (x_train, y_train), (x_val, y_val), (x_test, y_test), orig_dims, nb_classes
 
