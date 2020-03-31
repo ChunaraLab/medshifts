@@ -33,6 +33,9 @@ class ShiftDetector:
         ind_od_p_vals = np.ones((len(self.dr_techniques), len(self.od_tests))) * (-1)
         ind_od_t_vals = np.ones((len(self.dr_techniques), len(self.od_tests))) * (-1)
 
+        ind_od_feat_p_vals = np.ones((len(self.dr_techniques), len(self.od_tests), X_tr.shape[1])) * (-1)
+        ind_od_feat_t_vals = np.ones((len(self.dr_techniques), len(self.od_tests), X_tr.shape[1])) * (-1)
+
         md_decs = np.ones(len(self.dr_techniques)) * (-1)
         ind_md_decs = np.ones((len(self.dr_techniques), len(self.md_tests))) * (-1)
         ind_md_p_vals = np.ones((len(self.dr_techniques), len(self.md_tests))) * (-1)
@@ -81,24 +84,32 @@ class ShiftDetector:
             od_loc_p_vals = []
             od_loc_t_vals = []
 
+            od_loc_feat_p_vals = np.ones((len(self.od_tests), X_tr.shape[1])) * (-1)
+            od_loc_feat_t_vals = np.ones((len(self.od_tests), X_tr.shape[1])) * (-1)
+
             md_loc_p_vals = []
             md_loc_t_vals = []
 
             # Iterate over all test types and use appropriate test for the DR technique used.
             for test_type in self.test_types:
                 if test_type == TestDimensionality.One.value:
-                    for od_test in self.od_tests:
+                    for od_test_idx, od_test in enumerate(self.od_tests):
                         shift_tester = ShiftTester(TestDimensionality(test_type), sign_level=self.sign_level, ot=OnedimensionalTest(od_test))
                         if dr_technique != DimensionalityReduction.BBSDh.value:
-                            p_val, feature_p_vals, t_val, _ = shift_tester.test_shift(X_tr_red, X_te_red) # TODO check t_val calc
+                            p_val, feature_p_vals, t_val, feature_t_vals = shift_tester.test_shift(X_tr_red, X_te_red) # TODO check t_val calc
                         else:
+                            feature_p_vals = None
+                            feature_t_vals = None
                             p_val = shift_tester.test_chi2_shift(X_tr_red, X_te_red, nb_classes) # TODO return t_vals
                         od_loc_p_vals.append(p_val)
                         od_loc_t_vals.append(t_val)
+
+                        od_loc_feat_p_vals[od_test_idx, :] = feature_p_vals
+                        od_loc_feat_t_vals[od_test_idx, :] = feature_t_vals
                 if test_type == TestDimensionality.Multi.value:
                     for md_test in self.md_tests:
                         shift_tester = ShiftTester(TestDimensionality(test_type), sign_level=self.sign_level, mt=MultidimensionalTest(md_test))
-                        p_val, _, t_val, _ = shift_tester.test_shift(X_tr_red[:self.sample], X_te_red)
+                        p_val, _, t_val, _ = shift_tester.test_shift(X_tr_red, X_te_red)
                         md_loc_p_vals.append(p_val)
                         md_loc_t_vals.append(t_val)
 
@@ -126,6 +137,9 @@ class ShiftDetector:
                 ind_od_p_vals[dr_ind, :] = od_loc_p_vals
                 ind_od_t_vals[dr_ind, :] = od_loc_t_vals
 
+                ind_od_feat_p_vals[dr_ind, :, :] = od_loc_feat_p_vals
+                ind_od_feat_t_vals[dr_ind, :, :] = od_loc_feat_t_vals
+
             # Same as above ...
             if len(md_loc_decs) > 0:
                 md_decs[dr_ind] = np.max(md_loc_decs)
@@ -133,5 +147,5 @@ class ShiftDetector:
                 ind_md_p_vals[dr_ind, :] = np.array(md_loc_p_vals)
                 ind_md_t_vals[dr_ind, :] = np.array(md_loc_t_vals)
 
-        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models, tr_auc, te_auc, tr_smr, te_smr
+        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models, tr_auc, te_auc, tr_smr, te_smr
 

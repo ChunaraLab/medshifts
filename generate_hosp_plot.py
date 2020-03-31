@@ -92,7 +92,7 @@ np.set_printoptions(threshold=sys.maxsize)
 datset = sys.argv[1]
 test_type = sys.argv[3]
 
-path = './hosp_results_parallel/'
+path = './hosp_results_new_feats/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -101,12 +101,12 @@ if not os.path.exists(path):
     os.makedirs(path)
 
 # Define feature groups
-# feature_sets = [['labs','vitals','demo','others']]
-# feature_sets = [['labs','vitals','demo','others'], ['labs']]
-# feature_sets = [['labs','vitals','demo','others'], ['labs'], ['vitals']]
-# feature_sets = [['saps2']]
-# feature_sets = [['saps2'], ['labs','vitals','demo','others']]
-feature_sets = [['saps2'], ['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo']]
+# feature_groups = [['labs','vitals','demo','others']]
+# feature_groups = [['labs','vitals','demo','others'], ['labs']]
+# feature_groups = [['labs','vitals','demo','others'], ['labs'], ['vitals']]
+feature_groups = [['saps2']]
+# feature_groups = [['saps2'], ['labs','vitals','demo','others']]
+# feature_groups = [['saps2'], ['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo']]
 
 # Define train-test pairs of hospitals 
 NUM_HOSPITALS_TOP = 11 # hospitals with records >= 1000
@@ -139,8 +139,8 @@ if test_type == 'multiv':
     md_tests = [MultidimensionalTest.MMD.value]
     # samples = [10, 20, 50, 100, 200, 500, 1000]
     # samples = [100, 1000]
-    # samples = [1000]
-    samples = [1000, 1500]
+    samples = [1500]
+    # samples = [1000, 1500]
     # samples = [10, 20, 50, 100, 200]
 else:
     # od_tests = [od.value for od in OnedimensionalTest]
@@ -148,8 +148,8 @@ else:
     md_tests = []
     # samples = [10, 20, 50, 100, 200, 500, 1000, 9000]
     # samples = [100, 1000]
-    # samples = [1000]
-    samples = [1000, 1500]
+    samples = [1500]
+    # samples = [1000, 1500]
     # samples = [10, 20, 50, 100, 200, 500]
 difference_samples = 10
 
@@ -172,11 +172,12 @@ else:
 # PIPELINE START
 # -------------------------------------------------
 
-samples_shifts_rands_dr_tech_feats_hosps = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot), len(feature_sets), len(hosp_pairs))) * (-1)
-samples_shifts_rands_dr_tech_feats_hosps_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot), len(feature_sets), len(hosp_pairs))) * (-1)
-samples_shifts_rands_feats_hosps_te_acc = np.ones((len(samples), len(shifts), random_runs, len(feature_sets), len(hosp_pairs), 2)) * (-1) # 0-auc, 1-smr # TODO add auc, smr, p-val, mmd in same array. add hosp_pair
+samples_shifts_rands_dr_tech_feats_hosps = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot), len(feature_groups), len(hosp_pairs))) * (-1)
+samples_shifts_rands_dr_tech_feats_hosps_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot), len(feature_groups), len(hosp_pairs))) * (-1)
+samples_shifts_rands_feats_hosps_te_acc = np.ones((len(samples), len(shifts), random_runs, len(feature_groups), len(hosp_pairs), 2)) * (-1) # 0-auc, 1-smr # TODO add auc, smr, p-val, mmd in same array. add hosp_pair
+samples_shifts_rands_feat_hosps_t_vals = np.ones((len(samples), len(shifts), len(dr_techniques_plot), len(od_tests), len(feature_groups), random_runs, len(hosp_pairs))) * (-1)
 
-for feature_set_idx, feature_set in enumerate(feature_sets):
+for feature_set_idx, feature_set in enumerate(feature_groups):
 
     for hosp_pair_idx, (_, _, hosp_train, hosp_test) in enumerate(hosp_pairs):
     
@@ -191,18 +192,20 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
         samples_shifts_rands_dr_tech_t_val = np.load("%s/samples_shifts_rands_dr_tech_t_val.npy" % (hosp_path))
 
         samples_shifts_rands_te_acc = np.load("%s/samples_shifts_rands_te_acc.npy" % (hosp_path))
+        samples_shifts_rands_feat_t_vals = np.load("%s/samples_shifts_rands_feat_p_vals.npy" % (hosp_path))
 
         samples_shifts_rands_dr_tech_feats_hosps[:,:,:,:,feature_set_idx,hosp_pair_idx] = samples_shifts_rands_dr_tech
         samples_shifts_rands_dr_tech_feats_hosps_t_val[:,:,:,:,feature_set_idx,hosp_pair_idx] = samples_shifts_rands_dr_tech_t_val
 
         samples_shifts_rands_feats_hosps_te_acc[:,:,:,feature_set_idx,hosp_pair_idx,:] = samples_shifts_rands_te_acc
+        samples_shifts_rands_feat_hosps_t_vals[:,:,:,:,feature_set_idx,:,hosp_pair_idx] = samples_shifts_rands_feat_t_vals
 
 np.save("%s/samples_shifts_rands_dr_tech_feats_hosps.npy" % (path), samples_shifts_rands_dr_tech_feats_hosps)
 np.save("%s/samples_shifts_rands_dr_tech_feats_hosps_t_val.npy" % (path), samples_shifts_rands_dr_tech_feats_hosps_t_val)
 np.save("%s/samples_shifts_rands_feats_hosps_te_acc.npy" % (path), samples_shifts_rands_feats_hosps_te_acc)
 
 # Feat, dr, shift, sample - mean
-for feature_set_idx, feature_set in enumerate(feature_sets):
+for feature_set_idx, feature_set in enumerate(feature_groups):
 
     feats_path = path + "_".join(feature_set) + '/'
 
@@ -257,14 +260,16 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
                 plt.clf()
 
                 # Minimum of the pairwise average tval in subsets of 5 hospitals
+                MAX_NUM_SUBSET = 5
                 HospitalIDs_ = np.array(HospitalIDs)
-                avg_tval_subset = []
-                for subs in combinations(range(len(HospitalIDs_)), 5):
-                    avg_tval_subset.append((subs, hosp_pair_tval[np.ix_(subs,subs)].mean()))
-                avg_tval_subset_sorted = sorted(avg_tval_subset, key=lambda x: x[1])
-                avg_tval_subset_sorted = [(HospitalIDs_[np.array(subs)],mmd) for subs,mmd in avg_tval_subset_sorted]
-                avg_tval_subset_sorted = pd.DataFrame(avg_tval_subset_sorted, columns=['HospitalIDs','average MMD'])
-                avg_tval_subset_sorted.to_csv("%s/%s_%s_%s_t_val_min_subset.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=False)
+                for num_subset in range(1, MAX_NUM_SUBSET+1):
+                    avg_tval_subset = []
+                    for subs in combinations(range(len(HospitalIDs_)), num_subset):
+                        avg_tval_subset.append((subs, hosp_pair_tval[np.ix_(subs,subs)].mean()))
+                    avg_tval_subset_sorted = sorted(avg_tval_subset, key=lambda x: x[1])
+                    avg_tval_subset_sorted = [(HospitalIDs_[np.array(subs)],mmd) for subs,mmd in avg_tval_subset_sorted]
+                    avg_tval_subset_sorted = pd.DataFrame(avg_tval_subset_sorted, columns=['HospitalIDs','average MMD'])
+                    avg_tval_subset_sorted.to_csv("%s/%s_%s_%s_%s_t_val_min_subset.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample, num_subset), index=False)
 
                 hosp_avg_tval = hosp_pair_tval.mean(axis=1)
                 hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDs, index=HospitalIDs)

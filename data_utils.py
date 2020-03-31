@@ -59,7 +59,7 @@ FeatureGroups = {
        'urineoutput_sum'],
     'demo': ['is_female', 'age', 'race_black', 'race_hispanic', 'race_asian', 'race_other'],
     'others': ['electivesurgery'],
-    'saps2': ['heartrate_min',
+    'saps2old': ['heartrate_min',
        'sysbp_min',
        'tempc_max',
        'bg_pao2fio2ratio_min',
@@ -72,6 +72,20 @@ FeatureGroups = {
        'wbc_min',
        'age',
        'gcs_min',
+       'electivesurgery'],
+    'saps2': ['heartrate',
+       'sysbp',
+       'temp',
+       'bg_pao2fio2ratio',
+       'bun',
+       'urineoutput',
+       'sodium',
+       'potassium',
+       'bicarbonate',
+       'bilirubin',
+       'wbc',
+       'gcs',
+       'age',
        'electivesurgery']
 }
 
@@ -107,7 +121,17 @@ def random_shuffle_and_split(x_train, y_train, x_test, y_test, split_index):
 
     return (x_train, y_train), (x_test, y_test)
 
-def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=False):
+def import_hosp_dataset(dataset):
+    df = None
+    external_dataset_path = './datasets/'
+    if dataset == 'eicu':
+        '''
+        From https://github.com/alistairewj/icu-model-transfer/blob/master/evaluate-model.ipynb
+        '''
+        df = pd.read_csv(external_dataset_path + 'X_eicu_day1.csv.gz', sep=',', index_col=0)
+    return df
+
+def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuffle=False):
     '''
     :param hosp_train, hosp_test: hospital IDs to include in train and test set
     :param min_trans: minimum transactions per hospital for inclusion
@@ -116,10 +140,11 @@ def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=Fal
     external_dataset_path = './datasets/'
     nb_classes = 2
     if dataset == 'eicu':
+        # df_eicu = df.copy()
         '''
         From https://github.com/alistairewj/icu-model-transfer/blob/master/evaluate-model.ipynb
         '''
-        df_eicu = pd.read_csv(external_dataset_path + 'X_eicu_day1.csv.gz', sep=',', index_col=0)
+        df_eicu = pd.read_csv(external_dataset_path + 'X_eicu_day1_saps2.csv', sep=',', index_col=0)
         # hosp_to_keep = df_eicu['hospitalid'].value_counts()
         # hosp_to_keep = hosp_to_keep[hosp_to_keep>=min_trans].index.values
         # print('Retaining {} of {} hospitals with at least 100 patients.'.format(
@@ -129,10 +154,6 @@ def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=Fal
         df_eicu_test = df_eicu.loc[df_eicu['hospitalid'].isin(np.array(hosp_test)), :]
 
         var_other = ['hospitalid', 'death', 'hosp_los', 'ventdays']
-        target = FeatureGroups['outcome']
-        features = []
-        for group in feature_set:
-            features += FeatureGroups[group]
 
         # Extract required features. Remove target and other vars
         y_train = df_eicu_train[target].values
@@ -149,7 +170,7 @@ def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=Fal
         all_nan = np.logical_or(all_nan_train, all_nan_test)
         x_train = x_train[:, ~all_nan]
         x_test = x_test[:, ~all_nan]
-        print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
+        # print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
 
         # Impute NaN by mean of column
         imp = SimpleImputer(missing_values=np.nan, strategy='mean')
@@ -186,8 +207,7 @@ def import_hosp_dataset(dataset, feature_set, hosp_train, hosp_test, shuffle=Fal
     y_train = y_train.reshape(len(y_train))
     y_val = y_val.reshape(len(y_val))
     y_test = y_test.reshape(len(y_test))
-    
-    print('hosp_train, hosp_test, orig_dims, new_dims train, val, test x, y', hosp_train, hosp_test, orig_dims, x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
+    # print('hosp_train, hosp_test, orig_dims, new_dims train, val, test x, y', hosp_train, hosp_test, orig_dims, x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
 
     return (x_train, y_train), (x_val, y_val), (x_test, y_test), orig_dims, nb_classes
 
