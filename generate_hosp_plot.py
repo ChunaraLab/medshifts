@@ -11,6 +11,8 @@ Plot test results across hospitals
 import numpy as np
 import seaborn as sns
 import pandas as pd
+from scipy import stats
+from matplotlib.colors import ListedColormap
 from itertools import combinations
 from tensorflow import set_random_seed
 seed = 1
@@ -90,7 +92,7 @@ np.set_printoptions(threshold=sys.maxsize)
 datset = sys.argv[1]
 test_type = sys.argv[3]
 
-path = './hosp_results_parallel_11/'
+path = './hosp_results_parallel/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -137,7 +139,8 @@ if test_type == 'multiv':
     md_tests = [MultidimensionalTest.MMD.value]
     # samples = [10, 20, 50, 100, 200, 500, 1000]
     # samples = [100, 1000]
-    samples = [1000]
+    # samples = [1000]
+    samples = [1000, 1500]
     # samples = [10, 20, 50, 100, 200]
 else:
     # od_tests = [od.value for od in OnedimensionalTest]
@@ -145,7 +148,8 @@ else:
     md_tests = []
     # samples = [10, 20, 50, 100, 200, 500, 1000, 9000]
     # samples = [100, 1000]
-    samples = [1000]
+    # samples = [1000]
+    samples = [1000, 1500]
     # samples = [10, 20, 50, 100, 200, 500]
 difference_samples = 10
 
@@ -222,9 +226,7 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
                     mean_p_vals = np.mean(feats_dr_tech_shifts_samples_results)
                     std_p_vals = np.std(feats_dr_tech_shifts_samples_results)
                     mean_t_vals = np.mean(feats_dr_tech_shifts_samples_results_t_val)
-                    # if mean_p_vals==-1:
-                    #     print(hosp_train, hosp_test)
-                    #     mean_p_vals = 1
+
                     hosp_pair_pval[hosp_train_idx, hosp_test_idx] = mean_p_vals < sign_level
                     hosp_pair_tval[hosp_train_idx, hosp_test_idx] = mean_t_vals
 
@@ -240,15 +242,19 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
                         hosp_pair_auc[hosp_train_idx, hosp_test_idx] = mean_te_auc
                         hosp_pair_smr[hosp_train_idx, hosp_test_idx] = mean_te_smr
 
-                # hosp_avg_pval = hosp_pair_pval.mean(axis=1)
-                # hosp_pair_pval = pd.DataFrame(hosp_pair_pval, columns=HospitalIDs, index=HospitalIDs)
-                # hosp_pair_pval.to_csv("%s/%s_%s_%s_p_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
-                # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
-                # fig = sns.heatmap(hosp_pair_pval, linewidths=0.5, cmap=cmap)
-                # plt.xlabel('Target hospital')
-                # plt.ylabel('Source hospital')
-                # plt.savefig("%s/%s_%s_%s_p_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                # plt.clf()
+                hosp_avg_pval = hosp_pair_pval.mean(axis=1)
+                hosp_pair_pval = pd.DataFrame(hosp_pair_pval, columns=HospitalIDs, index=HospitalIDs)
+                hosp_pair_pval.to_csv("%s/%s_%s_%s_p_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                # Discrete colormap using code by lanery https://stackoverflow.com/questions/38836154/discrete-legend-in-seaborn-heatmap-plot                
+                cmap_binary = sns.cubehelix_palette(2, hue=0.05, rot=0, light=0.9, dark=0)
+                fig = sns.heatmap(hosp_pair_pval, linewidths=0.5, cmap=ListedColormap(cmap_binary))
+                colorbar = fig.collections[0].colorbar
+                colorbar.set_ticks([0.25, 0.75])
+                colorbar.set_ticklabels(['No Shift', 'Shift'])
+                plt.xlabel('Target hospital')
+                plt.ylabel('Source hospital')
+                plt.savefig("%s/%s_%s_%s_p_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                plt.clf()
 
                 # Minimum of the pairwise average tval in subsets of 5 hospitals
                 HospitalIDs_ = np.array(HospitalIDs)
@@ -260,50 +266,93 @@ for feature_set_idx, feature_set in enumerate(feature_sets):
                 avg_tval_subset_sorted = pd.DataFrame(avg_tval_subset_sorted, columns=['HospitalIDs','average MMD'])
                 avg_tval_subset_sorted.to_csv("%s/%s_%s_%s_t_val_min_subset.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=False)
 
-                # hosp_avg_tval = hosp_pair_tval.mean(axis=1)
-                # hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDs, index=HospitalIDs)
-                # hosp_pair_tval.to_csv("%s/%s_%s_%s_t_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
-                # fig = sns.heatmap(hosp_pair_tval, linewidths=0.5, cmap=cmap)
-                # plt.xlabel('Target hospital')
-                # plt.ylabel('Source hospital')
-                # plt.savefig("%s/%s_%s_%s_t_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                # plt.clf()
+                hosp_avg_tval = hosp_pair_tval.mean(axis=1)
+                hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDs, index=HospitalIDs)
+                hosp_pair_tval.to_csv("%s/%s_%s_%s_t_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
+                fig = sns.heatmap(hosp_pair_tval, linewidths=0.5, cmap=cmap)
+                plt.xlabel('Target hospital')
+                plt.ylabel('Source hospital')
+                plt.savefig("%s/%s_%s_%s_t_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                plt.clf()
 
-                # if dr == DimensionalityReduction.NoRed.value: # TODO run auc smr plots only once in dr_techniques_plot
-                #     hosp_avg_auc = hosp_pair_auc.mean(axis=1)
-                #     hosp_min_auc = hosp_pair_auc.min(axis=1)
-                #     hosp_pair_auc = pd.DataFrame(hosp_pair_auc, columns=HospitalIDs, index=HospitalIDs)
-                #     hosp_pair_auc.to_csv("%s/%s_%s_%s_te_auc_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
-                #     # fig = sns.heatmap(hosp_pair_auc, linewidths=0.5, cmap=cmap)
-                #     # plt.xlabel('Target hospital')
-                #     # plt.ylabel('Source hospital')
-                #     # plt.savefig("%s/%s_%s_%s_te_auc_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                #     # plt.clf()
+                hosp_all_pairs_tval = pd.melt(hosp_pair_tval.reset_index(), id_vars='index')
+                hosp_all_pairs_tval.columns = ['Source','Target','MMD']
 
-                #     hosp_avg_smr = hosp_pair_smr.mean(axis=1)
-                #     hosp_pair_smr = pd.DataFrame(hosp_pair_smr, columns=HospitalIDs, index=HospitalIDs)
-                #     hosp_pair_smr.to_csv("%s/%s_%s_%s_te_smr_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
-                #     # fig = sns.heatmap(hosp_pair_smr, linewidths=0.5, cmap=cmap)
-                #     # plt.xlabel('Target hospital')
-                #     # plt.ylabel('Source hospital')
-                #     # plt.savefig("%s/%s_%s_%s_te_smr_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                #     # plt.clf()
+                if dr == DimensionalityReduction.NoRed.value: # TODO run auc smr plots only once in dr_techniques_plot
+                    hosp_avg_auc = hosp_pair_auc.mean(axis=1)
+                    hosp_min_auc = hosp_pair_auc.min(axis=1)
+                    hosp_pair_auc = pd.DataFrame(hosp_pair_auc, columns=HospitalIDs, index=HospitalIDs)
+                    hosp_pair_auc.to_csv("%s/%s_%s_%s_te_auc_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                    fig = sns.heatmap(hosp_pair_auc, linewidths=0.5, cmap=cmap)
+                    plt.xlabel('Target hospital')
+                    plt.ylabel('Source hospital')
+                    plt.savefig("%s/%s_%s_%s_te_auc_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    plt.clf()
 
-                #     # Scatter plot
-                #     h_stats = pd.DataFrame(data=np.concatenate(\
-                #         [hosp_avg_tval[:,np.newaxis], hosp_avg_auc[:,np.newaxis], hosp_min_auc[:,np.newaxis],\
-                #             hosp_avg_smr[:,np.newaxis]],axis=1),\
-                #         columns=['MMD','AUC','AUC_min','SMR'],\
-                #         index=HospitalIDs)
+                    hosp_all_pairs_auc = pd.melt(hosp_pair_auc.reset_index(), id_vars='index')
+                    hosp_all_pairs_auc.columns = ['Source','Target','AUC']
+
+                    hosp_avg_smr = hosp_pair_smr.mean(axis=1)
+                    hosp_pair_smr = pd.DataFrame(hosp_pair_smr, columns=HospitalIDs, index=HospitalIDs)
+                    hosp_pair_smr.to_csv("%s/%s_%s_%s_te_smr_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                    fig = sns.heatmap(hosp_pair_smr, linewidths=0.5, cmap=cmap)
+                    plt.xlabel('Target hospital')
+                    plt.ylabel('Source hospital')
+                    plt.savefig("%s/%s_%s_%s_te_smr_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    plt.clf()
+
+                    hosp_all_pairs_smr = pd.melt(hosp_pair_smr.reset_index(), id_vars='index')
+                    hosp_all_pairs_smr.columns = ['Source','Target','SMR']
+
+                    # Scatter plot
+                    h_stats = hosp_all_pairs_tval.merge(hosp_all_pairs_auc, how='left',
+                                                    left_on=['Source','Target'], right_on = ['Source','Target'])\
+                                                .merge(hosp_all_pairs_smr, how='left',
+                                                    left_on=['Source','Target'], right_on = ['Source','Target'])
                     
-                #     fig = sns.scatterplot(data=h_stats, x='MMD', y='AUC', s=100, alpha=0.6)
-                #     plt.xlabel('MMD, average across hospital pairs')
-                #     plt.ylabel('AUC')
-                #     plt.savefig("%s/%s_%s_%s_mmd_acc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                #     plt.clf()
+                    sns.set_style("ticks")
+                    fig = sns.regplot(data=h_stats, x='MMD', y='AUC', scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
+                    corr_coef, pval_corr_coef = stats.pearsonr(h_stats['MMD'], h_stats['AUC'])
+                    textstr = '\n'.join((
+                        r'Pearson corr.=%.4f' % (corr_coef, ),
+                        r'p-val=%.4f' % (pval_corr_coef, )))
+                    # these are matplotlib.patch.Patch properties
+                    props = dict(boxstyle='round', facecolor='white', alpha=0.5)
+                    # place a text box in upper left in axes coords
+                    fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
+                            verticalalignment='top', bbox=props)
+                    plt.xlabel('MMD')
+                    plt.ylabel('AUC')
+                    plt.savefig("%s/%s_%s_%s_mmd_auc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    plt.clf()
+                    
+                    fig = sns.regplot(data=h_stats, x='MMD', y='SMR', scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
+                    corr_coef, pval_corr_coef = stats.pearsonr(h_stats['MMD'], h_stats['SMR'])
+                    textstr = '\n'.join((
+                        r'Pearson corr.=%.4f' % (corr_coef, ),
+                        r'p-val=%.4f' % (pval_corr_coef, )))
+                    fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
+                            verticalalignment='top', bbox=props)
+                    plt.xlabel('MMD')
+                    plt.ylabel('SMR')
+                    plt.savefig("%s/%s_%s_%s_mmd_smr_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    plt.clf()
 
-                #     fig = sns.scatterplot(data=h_stats, x='MMD', y='AUC_min', s=100, alpha=0.6)
-                #     plt.xlabel('MMD, min across hospital pairs')
-                #     plt.ylabel('AUC')
-                #     plt.savefig("%s/%s_%s_%s_mmd_minacc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                #     plt.clf()
+                    # h_stats = pd.DataFrame(data=np.concatenate(\
+                    #     [hosp_avg_tval[:,np.newaxis], hosp_avg_auc[:,np.newaxis], hosp_min_auc[:,np.newaxis],\
+                    #         hosp_avg_smr[:,np.newaxis]],axis=1),\
+                    #     columns=['MMD','AUC','AUC_min','SMR'],\
+                    #     index=HospitalIDs)
+                                      
+                    # fig = sns.scatterplot(data=h_stats, x='MMD', y='AUC', s=100, alpha=0.6)
+                    # plt.xlabel('MMD, average across hospital pairs')
+                    # plt.ylabel('AUC')
+                    # plt.savefig("%s/%s_%s_%s_avgmmd_avgacc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    # plt.clf()
+
+                    # fig = sns.scatterplot(data=h_stats, x='MMD', y='AUC_min', s=100, alpha=0.6)
+                    # plt.xlabel('MMD, min across hospital pairs')
+                    # plt.ylabel('AUC')
+                    # plt.savefig("%s/%s_%s_%s_avgmmd_minacc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    # plt.clf()

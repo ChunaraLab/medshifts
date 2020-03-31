@@ -8,12 +8,13 @@ Usage:
 python hosp_pipeline_parallel.py eicu orig multiv mice
 
 # TODO
-mice, acc BBSDh, univariate
-min/max instead of min/max_early in utils.py in icu_model_transfer
+frequency univariate
+mice
 mean_p_vals = -1 for 73, 338
 reduce dimension of X_te using model trained on X_te in shift_detector
 acc for dimension reduction also in shift_detector
 apache 4 feature group in apacheapsvar, apachepredvar SQL tables
+interpretable distribution change code
 
 record train set accuracy
 use validation set for accuracy in shift_detector
@@ -158,7 +159,8 @@ if test_type == 'multiv':
     md_tests = [MultidimensionalTest.MMD.value]
     # samples = [10, 20, 50, 100, 200, 500, 1000]
     # samples = [100, 1000]
-    samples = [1000]
+    # samples = [1000]
+    samples = [1000, 1500]
     # samples = [10, 20, 50, 100, 200]
 else:
     # od_tests = [od.value for od in OnedimensionalTest]
@@ -166,7 +168,8 @@ else:
     md_tests = []
     # samples = [10, 20, 50, 100, 200, 500, 1000, 9000]
     # samples = [100, 1000]
-    samples = [1000]
+    # samples = [1000]
+    samples = [1000, 1500]
     # samples = [10, 20, 50, 100, 200, 500]
 difference_samples = 10
 
