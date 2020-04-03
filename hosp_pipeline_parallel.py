@@ -16,11 +16,11 @@ sample size vs acc, smr Johnson plot with all train in X_tr_3, y_tr_3
 frequency univariate
 colorcode scatterplot by hospital meta data
 mice
+interpretable distribution change code
 mean_p_vals = -1 for 73, 338
 reduce dimension of X_te using model trained on X_te in shift_detector
 acc for dimension reduction also in shift_detector
 apache 4 feature group in apacheapsvar, apachepredvar SQL tables
-interpretable distribution change code
 
 record train set accuracy
 use validation set for accuracy in shift_detector
@@ -51,7 +51,7 @@ from exp_utils import *
 
 import multiprocessing
 from joblib import Parallel, delayed
-num_cores = min(41, multiprocessing.cpu_count())
+num_cores = min(51, multiprocessing.cpu_count())
 
 # -------------------------------------------------
 # PLOTTING HELPERS
@@ -119,7 +119,7 @@ datset = sys.argv[1]
 test_type = sys.argv[3]
 missing_imp = sys.argv[4]
 
-path = './hosp_results_new_feats/'
+path = './hosp_results_all_feats/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -132,9 +132,9 @@ if not os.path.exists(path):
 # feature_groups = [['labs']]
 # feature_groups = [['vitals']]
 # feature_groups = [['demo']]
-feature_groups = [['saps2']]
+# feature_groups = [['saps2']]
 # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
-# feature_groups = [['saps2'], ['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo']]
+feature_groups = [['saps2'], ['labs','vitals','demo','saps2'], ['labs'], ['vitals'], ['demo']]
 
 # Define train-test pairs of hospitals
 NUM_HOSPITALS_TOP = 11 # hospitals with records >= 1000
@@ -147,11 +147,12 @@ for hi in HospitalIDs:
 
 # Define DR methods
 # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value, DimensionalityReduction.BBSDh.value]
-dr_techniques = [DimensionalityReduction.NoRed.value]
-# dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
+# dr_techniques = [DimensionalityReduction.NoRed.value]
+dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
 # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
 if test_type == 'multiv':
     # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value]
+    # dr_techniques = [DimensionalityReduction.NoRed.value]
     dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
     # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
 if test_type == 'univ':
@@ -185,7 +186,7 @@ else:
     missing_techniques = ['mean']
 
 # Number of random runs to average results over    
-random_runs = 5
+random_runs = 10
 
 # Signifiance level
 sign_level = 0.05
@@ -203,12 +204,12 @@ else:
 # PIPELINE START
 # -------------------------------------------------
 
-def test_hosp_pair(df, target, features, feature_set_idx, hosp_pair_idx, hosp_train, hosp_test):
-    print("\n========\nFeature Set, Hosp Train, Hosp Test", target, features, hosp_train, hosp_test)
+def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pair_idx, hosp_train, hosp_test):
+    print("\n========\nFeature Set, Hosp Train, Hosp Test", target, feature_group, hosp_train, hosp_test)
     print("========\n")
 
     hosp_folder_name = 'tr_' + '_'.join(map(str, hosp_train)) + '_ts_' + '_'.join(map(str, hosp_test))
-    hosp_path = path + "_".join(features) + '/' + hosp_folder_name + '/'
+    hosp_path = path + "_".join(feature_group) + '/' + hosp_folder_name + '/'
     if not os.path.exists(hosp_path):
         os.makedirs(hosp_path)
 
@@ -416,7 +417,6 @@ def test_hosp_pair(df, target, features, feature_set_idx, hosp_pair_idx, hosp_tr
         mean_te_smr = np.mean(rand_run_te_smr, axis=1)
         std_te_smr = np.std(rand_run_te_smr, axis=1)
 
-
         mean_feat_p_vals = np.mean(rand_run_feat_p_vals, axis=4)
         std_feat_p_vals = np.std(rand_run_feat_p_vals, axis=4)
         # for dr_idx, dr in enumerate(dr_techniques_plot):
@@ -495,11 +495,10 @@ if __name__ == "__main__":
     for feature_set_idx, feature_group in enumerate(feature_groups):
 
         target = FeatureGroups['outcome']
-        feature_sets = []
-        all_features = []
+        feature_set = []
         for group in feature_group:
             # All features in group
-            all_features += FeatureGroups[group]
+            feature_set += FeatureGroups[group]
 
             # # Univariate
             # for feats in FeatureGroups[group]:
@@ -508,8 +507,6 @@ if __name__ == "__main__":
             # # Pairs of features in group
             # for subs in combinations(FeatureGroups[group], 2):
             #     feature_sets.append(list(subs)) # TODO de-duplicate
-        feature_sets.append(all_features)
 
-        for features in feature_sets:
-            Parallel(n_jobs=num_cores)(delayed(test_hosp_pair)(df, target, features, feature_set_idx,\
-                                                hosp_pair_idx, hosp_train, hosp_test) for hosp_pair_idx, (hosp_train, hosp_test) in enumerate(hosp_pairs))
+        Parallel(n_jobs=num_cores)(delayed(test_hosp_pair)(df, target, feature_set, feature_set_idx, feature_group,\
+                                            hosp_pair_idx, hosp_train, hosp_test) for hosp_pair_idx, (hosp_train, hosp_test) in enumerate(hosp_pairs))
