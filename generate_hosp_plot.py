@@ -92,7 +92,7 @@ np.set_printoptions(threshold=sys.maxsize)
 datset = sys.argv[1]
 test_type = sys.argv[3]
 
-path = './hosp_results_new_feats/'
+path = './hosp_results_saps2diff_feats/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -101,12 +101,13 @@ if not os.path.exists(path):
     os.makedirs(path)
 
 # Define feature groups
-# feature_groups = [['labs','vitals','demo','others']]
+# feature_groups = [['labs','vitals','demo','others','saps2diff']]
 # feature_groups = [['labs','vitals','demo','others'], ['labs']]
 # feature_groups = [['labs','vitals','demo','others'], ['labs'], ['vitals']]
 # feature_groups = [['saps2']]
 # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
-feature_groups = [['saps2'], ['labs','vitals','demo','others'], ['labs'], ['vitals'], ['demo']]
+# feature_groups = [['saps2'], ['labs'], ['vitals'], ['demo']]
+feature_groups = [['saps2'], ['labs','vitals','demo','others','saps2diff'], ['labs'], ['vitals'], ['demo']]
 
 # Define train-test pairs of hospitals 
 NUM_HOSPITALS_TOP = 11 # hospitals with records >= 1000
@@ -155,7 +156,7 @@ else:
 difference_samples = 10
 
 # Number of random runs to average results over    
-random_runs = 5
+random_runs = 10
 
 # Signifiance level
 sign_level = 0.05
@@ -391,6 +392,7 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                                                     left_on=['Source','Target'], right_on = ['Source','Target'])\
                                                 .merge(hosp_all_pairs_smr, how='left',
                                                     left_on=['Source','Target'], right_on = ['Source','Target'])
+                    h_stats = h_stats[h_stats.Source!=h_stats.Target]
                     
                     fig = sns.regplot(data=h_stats, x='MMD', y='AUC', scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
                     corr_coef, pval_corr_coef = stats.pearsonr(h_stats['MMD'], h_stats['AUC'])

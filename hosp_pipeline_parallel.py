@@ -51,7 +51,7 @@ from exp_utils import *
 
 import multiprocessing
 from joblib import Parallel, delayed
-num_cores = min(51, multiprocessing.cpu_count())
+num_cores = min(41, multiprocessing.cpu_count())
 
 # -------------------------------------------------
 # PLOTTING HELPERS
@@ -119,7 +119,7 @@ datset = sys.argv[1]
 test_type = sys.argv[3]
 missing_imp = sys.argv[4]
 
-path = './hosp_results_all_feats/'
+path = './hosp_results_saps2diff_feats/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -128,13 +128,13 @@ if not os.path.exists(path):
     os.makedirs(path)
 
 # Define feature groups
-# feature_groups = [['labs','vitals','demo','others']]
+# feature_groups = [['labs','vitals','demo','others','saps2diff']]
 # feature_groups = [['labs']]
 # feature_groups = [['vitals']]
 # feature_groups = [['demo']]
 # feature_groups = [['saps2']]
 # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
-feature_groups = [['saps2'], ['labs','vitals','demo','saps2'], ['labs'], ['vitals'], ['demo']]
+feature_groups = [['saps2'], ['labs','vitals','demo','others','saps2diff'], ['labs'], ['vitals'], ['demo']]
 
 # Define train-test pairs of hospitals
 NUM_HOSPITALS_TOP = 11 # hospitals with records >= 1000
@@ -250,21 +250,20 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
             set_random_seed(rand_run)
 
             # Load data
-            (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=True)
+            # print('Original')
+            (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=False)
             # X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
             # X_te_orig = normalize_datapoints(X_te_orig, 255.)
             # X_val_orig = normalize_datapoints(X_val_orig, 255.)
+            X_te_1 = X_te_orig.copy()
+            y_te_1 = y_te_orig.copy()
 
             # Apply shift
-            if shift == 'orig':
-                # print('Original')
-                (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=False)
+            if shift != 'orig':
+                (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=True)
                 # X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
                 # X_te_orig = normalize_datapoints(X_te_orig, 255.)
                 # X_val_orig = normalize_datapoints(X_val_orig, 255.)
-                X_te_1 = X_te_orig.copy()
-                y_te_1 = y_te_orig.copy()
-            else:
                 (X_te_1, y_te_1) = apply_shift(X_te_orig, y_te_orig, shift, orig_dims, datset)
 
             X_te_2 , y_te_2 = random_shuffle(X_te_1, y_te_1)
