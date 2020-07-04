@@ -22,11 +22,11 @@ import pandas as pd
 # -------------------------------------------------
 
 # Define proportion of examples in train set, 1-TRAIN_PROP in validation
-TRAIN_PROP = 0.99
+TRAIN_PROP = 0.90
 
 # Define feature groups
 # 'ventdays'
-FeatureGroups = {
+FeatureGroups_eicu = {
     'outcome': 'death',
     'hospital': ['hospitalid', 'hosp_los'],
     'labs': ['albumin_first_early',
@@ -80,8 +80,56 @@ FeatureGroups = {
        'electivesurgery']
 }
 
-HospitalIDs = [73, 264, 338, 443, 458, 420, 252, 300, 122, 243, 188, 449, 208,
+FeatureGroups_gossis = {
+    'outcome': 'hospital_death',
+    'demographic': ['age', 'bmi', 'elective_surgery', 'ethnicity', 'gender',
+                    'height', 'hospital_admit_source', 'icu_admit_source', 'icu_id',
+                    'icu_stay_type', 'icu_type', 'pre_icu_los_days', 'readmission_status', 'weight'],
+    'APACHE_covariate': ['albumin_apache', 'apache_2_diagnosis', 'apache_3j_diagnosis', 'apache_post_operative',
+                        'arf_apache', 'bilirubin_apache', 'bun_apache', 'creatinine_apache', 'fio2_apache',
+                        'gcs_eyes_apache', 'gcs_motor_apache', 'gcs_unable_apache', 'gcs_verbal_apache',
+                        'glucose_apache', 'heart_rate_apache', 'hematocrit_apache', 'intubated_apache',
+                        'map_apache', 'paco2_apache', 'paco2_for_ph_apache', 'pao2_apache', 'ph_apache', 'resprate_apache', 'sodium_apache',
+                        'temp_apache', 'urineoutput_apache', 'ventilated_apache', 'wbc_apache'],
+    'vitals': ['d1_diasbp_invasive_max', 'd1_diasbp_invasive_min', 'd1_diasbp_max', 'd1_diasbp_min',
+                'd1_diasbp_noninvasive_max', 'd1_diasbp_noninvasive_min', 'd1_heartrate_max', 'd1_heartrate_min',
+                'd1_mbp_invasive_max', 'd1_mbp_invasive_min', 'd1_mbp_max', 'd1_mbp_min', 'd1_mbp_noninvasive_max',
+                'd1_mbp_noninvasive_min', 'd1_resprate_max', 'd1_resprate_min', 'd1_spo2_max', 'd1_spo2_min',
+                'd1_sysbp_invasive_max', 'd1_sysbp_invasive_min', 'd1_sysbp_max', 'd1_sysbp_min', 'd1_sysbp_noninvasive_max',
+                'd1_sysbp_noninvasive_min', 'd1_temp_max', 'd1_temp_min', 'h1_diasbp_invasive_max',
+                'h1_diasbp_invasive_min', 'h1_diasbp_max', 'h1_diasbp_min', 'h1_diasbp_noninvasive_max',
+                'h1_diasbp_noninvasive_min', 'h1_heartrate_max', 'h1_heartrate_min', 'h1_mbp_invasive_max',
+                'h1_mbp_invasive_min', 'h1_mbp_max', 'h1_mbp_min', 'h1_mbp_noninvasive_max', 'h1_mbp_noninvasive_min',
+                'h1_resprate_max', 'h1_resprate_min', 'h1_spo2_max', 'h1_spo2_min', 'h1_sysbp_invasive_max',
+                'h1_sysbp_invasive_min', 'h1_sysbp_max', 'h1_sysbp_min', 'h1_sysbp_noninvasive_max',
+                'h1_sysbp_noninvasive_min', 'h1_temp_max', 'h1_temp_min'],
+    'labs': ['d1_albumin_max', 'd1_albumin_min', 'd1_bilirubin_max', 'd1_bilirubin_min',
+            'd1_bun_max', 'd1_bun_min', 'd1_calcium_max', 'd1_calcium_min', 'd1_creatinine_max', 'd1_creatinine_min',
+            'd1_glucose_max', 'd1_glucose_min', 'd1_hco3_max', 'd1_hco3_min',
+            'd1_hemaglobin_max', 'd1_hemaglobin_min', 'd1_hematocrit_max', 'd1_hematocrit_min',
+            'd1_inr_max', 'd1_inr_min', 'd1_lactate_max', 'd1_lactate_min', 'd1_platelets_max',
+            'd1_platelets_min', 'd1_potassium_max', 'd1_potassium_min', 'd1_sodium_max', 'd1_sodium_min',
+            'd1_wbc_max', 'd1_wbc_min', 'h1_albumin_max', 'h1_albumin_min', 'h1_bilirubin_max', 'h1_bilirubin_min',
+            'h1_bun_max', 'h1_bun_min', 'h1_calcium_max', 'h1_calcium_min', 'h1_creatinine_max', 'h1_creatinine_min',
+            'h1_glucose_max', 'h1_glucose_min', 'h1_hco3_max', 'h1_hco3_min', 'h1_hemaglobin_max', 'h1_hemaglobin_min',
+            'h1_hematocrit_max', 'h1_hematocrit_min', 'h1_inr_max', 'h1_inr_min', 'h1_lactate_max', 'h1_lactate_min',
+            'h1_platelets_max', 'h1_platelets_min', 'h1_potassium_max', 'h1_potassium_min',
+            'h1_sodium_max', 'h1_sodium_min', 'h1_wbc_max', 'h1_wbc_min'],
+    'labs_blood_gas': ['d1_arterial_pco2_max', 'd1_arterial_pco2_min', 'd1_arterial_ph_max',
+                        'd1_arterial_ph_min', 'd1_arterial_po2_max', 'd1_arterial_po2_min',
+                        'd1_pao2fio2ratio_max', 'd1_pao2fio2ratio_min', 'h1_arterial_pco2_max', 'h1_arterial_pco2_min',
+                        'h1_arterial_ph_max', 'h1_arterial_ph_min', 'h1_arterial_po2_max', 'h1_arterial_po2_min',
+                        'h1_pao2fio2ratio_max', 'h1_pao2fio2ratio_min'],
+    'APACHE_prediction': ['apache_4a_hospital_death_prob', 'apache_4a_icu_death_prob'],
+    'APACHE_comorbidity': ['aids', 'cirrhosis', 'diabetes_mellitus', 'hepatic_failure', 'immunosuppression',
+                            'leukemia', 'lymphoma', 'solid_tumor_with_metastasis'],
+    'APACHE_grouping': ['apache_3j_bodysystem', 'apache_2_bodysystem']
+}
+
+HospitalIDs_eicu = [73, 264, 338, 443, 458, 420, 252, 300, 122, 243, 188, 449, 208,
        307, 416, 413, 394, 199, 345]
+HospitalIDs_gossis = [118, 19, 188, 161, 70, 196, 176, 21, 194, 174, 100, 55,
+                    185, 79, 18, 157, 62, 39, 112, 76]
 
 def __unison_shuffled_copies(a, b):
     assert len(a) == len(b)
@@ -131,51 +179,59 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuf
     external_dataset_path = './datasets/'
     nb_classes = 2
     if dataset == 'eicu':
-        # df_eicu = df.copy()
-        '''
-        From https://github.com/alistairewj/icu-model-transfer/blob/master/evaluate-model.ipynb
-        '''
-        df_eicu = pd.read_csv(external_dataset_path + 'X_eicu_day1_saps2.csv', sep=',', index_col=0)
-        # hosp_to_keep = df_eicu['hospitalid'].value_counts()
-        # hosp_to_keep = hosp_to_keep[hosp_to_keep>=min_trans].index.values
-        # print('Retaining {} of {} hospitals with at least 100 patients.'.format(
-        #     len(hosp_to_keep), df_eicu['hospitalid'].nunique()))
-
-        df_eicu_train = df_eicu.loc[df_eicu['hospitalid'].isin(np.array(hosp_train)), :]
-        df_eicu_test = df_eicu.loc[df_eicu['hospitalid'].isin(np.array(hosp_test)), :]
-
+        data_filename = 'X_eicu_day1_saps2.csv'
+        index_col = 0
+        hospitalid_var = 'hospitalid'
         var_other = ['hospitalid', 'death', 'hosp_los', 'ventdays']
+    elif dataset == 'gossis':
+        data_filename = 'training_v2_top15hosp_gossis.csv'
+        index_col = None
+        hospitalid_var = 'hospital_id'
+        var_other = ['hospital_id', 'hospital_death', 'encounter_id', 'patient_id']
 
-        # Extract required features. Remove target and other vars
-        y_train = df_eicu_train[target].values
-        x_train = df_eicu_train.drop(var_other,axis=1)
-        x_train = df_eicu_train[features].values
+    # df_eicu = df.copy()
+    '''
+    From https://github.com/alistairewj/icu-model-transfer/blob/master/evaluate-model.ipynb
+    '''
+    df_eicu = pd.read_csv(external_dataset_path + data_filename, sep=',', index_col=index_col) # TODO move filename to main file
+    # hosp_to_keep = df_eicu[hospitalid_var].value_counts()
+    # hosp_to_keep = hosp_to_keep[hosp_to_keep>=min_trans].index.values
+    # print('Retaining {} of {} hospitals with at least 100 patients.'.format(
+    #     len(hosp_to_keep), df_eicu[hospitalid_var].nunique()))
 
-        y_test = df_eicu_test[target].values
-        x_test = df_eicu_test.drop(var_other,axis=1)
-        x_test = df_eicu_test[features].values
+    df_eicu_train = df_eicu.loc[df_eicu[hospitalid_var].isin(np.array(hosp_train)), :]
+    df_eicu_test = df_eicu.loc[df_eicu[hospitalid_var].isin(np.array(hosp_test)), :]
 
-        # Remove features with all nan from BOTH train and test
-        all_nan_train = np.all(np.isnan(x_train), axis=0)
-        all_nan_test = np.all(np.isnan(x_test), axis=0)
-        all_nan = np.logical_or(all_nan_train, all_nan_test)
-        x_train = x_train[:, ~all_nan]
-        x_test = x_test[:, ~all_nan]
-        # print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
+    # Extract required features. Remove target and other vars
+    y_train = df_eicu_train[target].values
+    x_train = df_eicu_train.drop(var_other,axis=1)
+    x_train = df_eicu_train[features].values
 
-        # Impute NaN by mean of column
-        imp = SimpleImputer(missing_values=np.nan, strategy='mean')
-        x_train = imp.fit(x_train).transform(x_train)
+    y_test = df_eicu_test[target].values
+    x_test = df_eicu_test.drop(var_other,axis=1)
+    x_test = df_eicu_test[features].values
 
-        imp = SimpleImputer(missing_values=np.nan, strategy='mean')
-        x_test = imp.fit(x_test).transform(x_test)
+    # Remove features with all nan from BOTH train and test
+    all_nan_train = np.all(np.isnan(x_train), axis=0)
+    all_nan_test = np.all(np.isnan(x_test), axis=0)
+    all_nan = np.logical_or(all_nan_train, all_nan_test)
+    x_train = x_train[:, ~all_nan]
+    x_test = x_test[:, ~all_nan]
+    # print('Features removed', np.array(features)[all_nan], np.sum(all_nan))
 
-        # # Split into train and test
-        # idx = np.random.permutation(x_eicu.shape[0])
-        # split_idx = int(0.8*x_eicu.shape[0])
-        # train_idx, test_idx = idx[:split_idx], idx[split_idx:]
-        # x_train, y_train = x_eicu[train_idx,:], y_eicu[train_idx]
-        # x_test, y_test = x_eicu[test_idx,:], y_eicu[test_idx]
+    # Impute NaN by mean of column
+    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+    x_train = imp.fit(x_train).transform(x_train)
+
+    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+    x_test = imp.fit(x_test).transform(x_test)
+
+    # # Split into train and test
+    # idx = np.random.permutation(x_eicu.shape[0])
+    # split_idx = int(0.8*x_eicu.shape[0])
+    # train_idx, test_idx = idx[:split_idx], idx[split_idx:]
+    # x_train, y_train = x_eicu[train_idx,:], y_eicu[train_idx]
+    # x_test, y_test = x_eicu[test_idx,:], y_eicu[test_idx]
 
     if shuffle:
         (x_train, y_train), (x_test, y_test) = random_shuffle_and_split(x_train, y_train, x_test, y_test, len(x_train))

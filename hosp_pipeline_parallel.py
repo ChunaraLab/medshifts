@@ -22,6 +22,7 @@ reduce dimension of X_te using model trained on X_te in shift_detector
 acc for dimension reduction also in shift_detector
 apache 4 feature group in apacheapsvar, apachepredvar SQL tables
 
+get HospitalIDs and FeatureGroups from function in data_utils
 record train set accuracy
 use validation set for accuracy in shift_detector
 DimensionalityReduction.NoRed in shift_reductor used to calculate accuracy. calculate in separate class. reduce return prob instead of pred
@@ -31,6 +32,7 @@ shift_tester.test_shift one dim check if t_val correct after FWER correction
 shift_tester.test_chi2_shift one dim return t_val
 use validation set
 load data once
+move filename in data_utils to main file
 2 rows less, 70128 orig vs now 70126
 '''
 
@@ -51,7 +53,7 @@ from exp_utils import *
 
 import multiprocessing
 from joblib import Parallel, delayed
-num_cores = min(41, multiprocessing.cpu_count())
+num_cores = min(25, multiprocessing.cpu_count())
 
 # -------------------------------------------------
 # PLOTTING HELPERS
@@ -119,7 +121,7 @@ datset = sys.argv[1]
 test_type = sys.argv[3]
 missing_imp = sys.argv[4]
 
-path = './hosp_results_saps2diff_feats/'
+path = './hosp_results_gossis/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -134,11 +136,21 @@ if not os.path.exists(path):
 # feature_groups = [['demo']]
 # feature_groups = [['saps2']]
 # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
-feature_groups = [['saps2'], ['labs','vitals','demo','others','saps2diff'], ['labs'], ['vitals'], ['demo']]
+feature_groups = [['demographic'], ['vitals'], ['labs','labs_blood_gas']]
+# feature_groups = [['APACHE_covariate'], ['labs','labs_blood_gas'], ['vitals'], ['APACHE_comorbidity'],
+#                     ['demographic','vitals','labs','labs_blood_gas','APACHE_comorbidity']]
 
 # Define train-test pairs of hospitals
-NUM_HOSPITALS_TOP = 11 # hospitals with records >= 1000
+NUM_HOSPITALS_TOP = 5 # hospitals with records >= 1000
 hosp_pairs = []
+# TODO move to data_utils
+if datset =='eicu':
+    HospitalIDs = HospitalIDs_eicu
+    FeatureGroups = FeatureGroups_eicu
+elif datset =='gossis':
+    HospitalIDs = HospitalIDs_gossis
+    FeatureGroups = FeatureGroups_gossis
+
 HospitalIDs = HospitalIDs[:NUM_HOSPITALS_TOP]
 for hi in HospitalIDs:
     for hj in HospitalIDs:
@@ -186,7 +198,7 @@ else:
     missing_techniques = ['mean']
 
 # Number of random runs to average results over    
-random_runs = 10
+random_runs = 5
 
 # Signifiance level
 sign_level = 0.05
@@ -305,12 +317,12 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
 
                 # Detect shift
                 shift_detector = ShiftDetector(dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset)
-                (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, red_models, tr_auc, te_auc, tr_smr, te_smr = shift_detector.detect_data_shift(X_tr_3, y_tr_3, X_val_3, y_val_3, X_te_3, y_te_3, orig_dims, nb_classes)
+                (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, red_models, tr_auc, te_val_auc_diff, tr_smr, te_val_smr_diff = shift_detector.detect_data_shift(X_tr_3, y_tr_3, X_val_3, y_val_3, X_te_3, y_te_3, orig_dims, nb_classes)
 
                 rand_run_tr_auc[si, rand_run] = tr_auc
-                rand_run_te_auc[si, rand_run] = te_auc
+                rand_run_te_auc[si, rand_run] = te_val_auc_diff
                 rand_run_tr_smr[si, rand_run] = tr_smr
-                rand_run_te_smr[si, rand_run] = te_smr
+                rand_run_te_smr[si, rand_run] = te_val_smr_diff
 
                 if test_type == 'multiv':
                     # print("Shift decision: ", ind_md_decs.flatten())

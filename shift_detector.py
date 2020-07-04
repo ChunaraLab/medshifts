@@ -44,11 +44,19 @@ class ShiftDetector:
         red_dim = -1
         
         val_acc = None
+        tr_acc = None
         te_acc = None
+
+        val_auc = None
         tr_auc = None
         te_auc = None
+
+        val_smr = None
         tr_smr = None
         te_smr = None
+
+        te_val_auc_diff = None
+        te_val_smr_diff = None
 
         # For all dimensionality reduction techniques:
         # 1. Train/Load model.
@@ -71,15 +79,21 @@ class ShiftDetector:
 
             # Reduce validation and test set.
             X_tr_red = shift_reductor.reduce(shift_reductor_model, X_tr) # reduce train dataset which is also used for fitting dimension reduction model
+            X_val_red = shift_reductor.reduce(shift_reductor_model, X_val) # reduce val dataset
             X_te_red = shift_reductor.reduce(shift_reductor_model, X_te) # TODO reduce test dataset using model trained on test dataset
 
             # Compute classification accuracy on both sets for malignancy detection.
             if dr_technique == DimensionalityReduction.BBSDh.value:
-                val_acc = np.sum(np.equal(X_tr_red, y_val).astype(int))/X_tr_red.shape[0]
+                tr_acc = np.sum(np.equal(X_tr_red, y_tr).astype(int))/X_tr_red.shape[0]
+                val_acc = np.sum(np.equal(X_val_red, y_val).astype(int))/X_val_red.shape[0]
                 te_acc = np.sum(np.equal(X_te_red, y_te).astype(int))/X_te_red.shape[0]
             elif dr_technique == DimensionalityReduction.NoRed.value: # TODO calculate accuracy in separate class than dimension reduction
                 tr_auc, tr_smr = shift_reductor.evaluate(shift_reductor_model, X_tr, y_tr)
+                val_auc, val_smr = shift_reductor.evaluate(shift_reductor_model, X_val, y_val)
                 te_auc, te_smr = shift_reductor.evaluate(shift_reductor_model, X_te, y_te)
+                
+                te_val_auc_diff = te_auc - val_auc
+                te_val_smr_diff = te_smr - val_smr
 
             od_loc_p_vals = []
             od_loc_t_vals = []
@@ -147,5 +161,5 @@ class ShiftDetector:
                 ind_md_p_vals[dr_ind, :] = np.array(md_loc_p_vals)
                 ind_md_t_vals[dr_ind, :] = np.array(md_loc_t_vals)
 
-        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models, tr_auc, te_auc, tr_smr, te_smr
+        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models, tr_auc, te_val_auc_diff, tr_smr, te_val_smr_diff
 

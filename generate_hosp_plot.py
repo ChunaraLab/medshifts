@@ -92,7 +92,7 @@ np.set_printoptions(threshold=sys.maxsize)
 datset = sys.argv[1]
 test_type = sys.argv[3]
 
-path = './hosp_results_saps2diff_feats/'
+path = './hosp_results_gossis/'
 path += test_type + '/'
 path += datset + '_'
 path += sys.argv[2] + '/'
@@ -106,12 +106,23 @@ if not os.path.exists(path):
 # feature_groups = [['labs','vitals','demo','others'], ['labs'], ['vitals']]
 # feature_groups = [['saps2']]
 # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
-# feature_groups = [['saps2'], ['labs'], ['vitals'], ['demo']]
-feature_groups = [['saps2'], ['labs','vitals','demo','others','saps2diff'], ['labs'], ['vitals'], ['demo']]
+# feature_groups = [['labs'], ['vitals'], ['demo']]
+# feature_groups = [['saps2'], ['labs','vitals','demo','others','saps2diff'], ['labs'], ['vitals'], ['demo']]
+feature_groups = [['APACHE_covariate']]
+# feature_groups = [['APACHE_covariate'], ['labs','labs_blood_gas'], ['vitals'], ['APACHE_comorbidity'],
+#                     ['demographic','vitals','labs','labs_blood_gas','APACHE_comorbidity']]
 
 # Define train-test pairs of hospitals 
-NUM_HOSPITALS_TOP = 11 # hospitals with records >= 1000
+NUM_HOSPITALS_TOP = 5 # hospitals with records >= 1000
 hosp_pairs = []
+# TODO move to data_utils
+if datset =='eicu':
+    HospitalIDs = HospitalIDs_eicu
+    FeatureGroups = FeatureGroups_eicu
+elif datset =='gossis':
+    HospitalIDs = HospitalIDs_gossis
+    FeatureGroups = FeatureGroups_gossis
+
 HospitalIDs = HospitalIDs[:NUM_HOSPITALS_TOP]
 # HospitalIDs = [i for i in HospitalIDs if i not in [413,394,199,345]]
 for hi in range(len(HospitalIDs)):
@@ -156,7 +167,7 @@ else:
 difference_samples = 10
 
 # Number of random runs to average results over    
-random_runs = 10
+random_runs = 5
 
 # Signifiance level
 sign_level = 0.05
@@ -194,7 +205,7 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
     samples_shifts_rands_feat_hosps_t_vals = np.ones((len(samples), len(shifts), len(dr_techniques_plot), len(od_tests), len(feature_set), random_runs, len(hosp_pairs))) * (-1)
 
     for hosp_pair_idx, (_, _, hosp_train, hosp_test) in enumerate(hosp_pairs):
-    
+
         print("\n==========\nFeature Set, Hosp Train, Hosp Test", feature_group, hosp_train, hosp_test)
         print("==========\n")
 
@@ -363,12 +374,12 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                     hosp_avg_auc = hosp_pair_auc.mean(axis=1)
                     hosp_min_auc = hosp_pair_auc.min(axis=1)
                     hosp_pair_auc = pd.DataFrame(hosp_pair_auc, columns=HospitalIDs, index=HospitalIDs)
-                    hosp_pair_auc.to_csv("%s/%s_%s_%s_te_auc_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                    hosp_pair_auc.to_csv("%s/%s_%s_%s_te_val_diff_auc_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
                     # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                     fig = sns.heatmap(hosp_pair_auc, linewidths=0.5, cmap=cmap)
                     plt.xlabel('Target Hospital ID')
                     plt.ylabel('Source Hospital ID')
-                    plt.savefig("%s/%s_%s_%s_te_auc_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    plt.savefig("%s/%s_%s_%s_te_val_diff_auc_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                     plt.clf()
 
                     hosp_all_pairs_auc = pd.melt(hosp_pair_auc.reset_index(), id_vars='index')
@@ -376,12 +387,12 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
 
                     hosp_avg_smr = hosp_pair_smr.mean(axis=1)
                     hosp_pair_smr = pd.DataFrame(hosp_pair_smr, columns=HospitalIDs, index=HospitalIDs)
-                    hosp_pair_smr.to_csv("%s/%s_%s_%s_te_smr_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                    hosp_pair_smr.to_csv("%s/%s_%s_%s_te_val_diff_smr_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
                     # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                     fig = sns.heatmap(hosp_pair_smr, linewidths=0.5, cmap=cmap)
                     plt.xlabel('Target Hospital ID')
                     plt.ylabel('Source Hospital ID')
-                    plt.savefig("%s/%s_%s_%s_te_smr_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    plt.savefig("%s/%s_%s_%s_te_val_diff_smr_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                     plt.clf()
 
                     hosp_all_pairs_smr = pd.melt(hosp_pair_smr.reset_index(), id_vars='index')
@@ -405,8 +416,8 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                     fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
                             verticalalignment='top', bbox=props)
                     plt.xlabel('$MMD^2$')
-                    plt.ylabel('AUC')
-                    plt.savefig("%s/%s_%s_%s_mmd_auc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    plt.ylabel('Test AUC - Val AUC')
+                    plt.savefig("%s/%s_%s_%s_mmd_te_val_diff_auc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                     plt.clf()
                     
                     fig = sns.regplot(data=h_stats, x='MMD', y='SMR', scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
@@ -417,8 +428,8 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                     fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
                             verticalalignment='top', bbox=props)
                     plt.xlabel('$MMD^2$')
-                    plt.ylabel('SMR')
-                    plt.savefig("%s/%s_%s_%s_mmd_smr_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
+                    plt.ylabel('Test SMR - Val SMR')
+                    plt.savefig("%s/%s_%s_%s_mmd_te_val_diff_smr_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                     plt.clf()
 
                     # h_stats = pd.DataFrame(data=np.concatenate(\
