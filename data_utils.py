@@ -80,11 +80,16 @@ FeatureGroups_eicu = {
        'electivesurgery']
 }
 
+# 'demographic': ['age', 'bmi', 'elective_surgery', 'ethnicity', 'gender',
+#                     'height', 'hospital_admit_source', 'icu_admit_source', 'icu_id',
+#                     'icu_stay_type', 'icu_type', 'pre_icu_los_days', 'readmission_status', 'weight']
 FeatureGroups_gossis = {
     'outcome': 'hospital_death',
-    'demographic': ['age', 'bmi', 'elective_surgery', 'ethnicity', 'gender',
-                    'height', 'hospital_admit_source', 'icu_admit_source', 'icu_id',
-                    'icu_stay_type', 'icu_type', 'pre_icu_los_days', 'readmission_status', 'weight'],
+    'demographic': ['age', 'bmi', 'elective_surgery', 'height', 'pre_icu_los_days',
+                    'readmission_status', 'weight', 'ethnicity_African American',
+                    'ethnicity_Asian', 'ethnicity_Caucasian', 'ethnicity_Hispanic',
+                    'ethnicity_Native American', 'ethnicity_Other/Unknown', 'gender_F',
+                    'gender_M'],
     'APACHE_covariate': ['albumin_apache', 'apache_2_diagnosis', 'apache_3j_diagnosis', 'apache_post_operative',
                         'arf_apache', 'bilirubin_apache', 'bun_apache', 'creatinine_apache', 'fio2_apache',
                         'gcs_eyes_apache', 'gcs_motor_apache', 'gcs_unable_apache', 'gcs_verbal_apache',
@@ -184,7 +189,7 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuf
         hospitalid_var = 'hospitalid'
         var_other = ['hospitalid', 'death', 'hosp_los', 'ventdays']
     elif dataset == 'gossis':
-        data_filename = 'training_v2_top15hosp_gossis.csv'
+        data_filename = 'training_v2_top15hosp_dummy_gossis.csv'
         index_col = None
         hospitalid_var = 'hospital_id'
         var_other = ['hospital_id', 'hospital_death', 'encounter_id', 'patient_id']

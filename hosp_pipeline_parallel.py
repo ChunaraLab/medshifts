@@ -131,12 +131,13 @@ if not os.path.exists(path):
 
 # Define feature groups
 # feature_groups = [['labs','vitals','demo','others','saps2diff']]
-# feature_groups = [['labs']]
+# feature_groups = [['labs','labs_blood_gas']]
 # feature_groups = [['vitals']]
 # feature_groups = [['demo']]
+# feature_groups = [['demographic']]
 # feature_groups = [['saps2']]
 # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
-feature_groups = [['demographic'], ['vitals'], ['labs','labs_blood_gas']]
+feature_groups = [['demographic'], ['vitals'], ['labs','labs_blood_gas'],['APACHE_covariate']]
 # feature_groups = [['APACHE_covariate'], ['labs','labs_blood_gas'], ['vitals'], ['APACHE_comorbidity'],
 #                     ['demographic','vitals','labs','labs_blood_gas','APACHE_comorbidity']]
 
@@ -178,16 +179,16 @@ test_types = [td.value for td in TestDimensionality]
 if test_type == 'multiv':
     od_tests = []
     md_tests = [MultidimensionalTest.MMD.value]
-    # samples = [1000]
-    samples = [1500]
+    # samples = [1500]
+    samples = [2500]
     # samples = [-1]
     # samples = [1000, 1500, -1]
 else:
     # od_tests = [od.value for od in OnedimensionalTest]
     od_tests = [OnedimensionalTest.KS.value]
     md_tests = []
-    # samples = [1000]
-    samples = [1500]
+    # samples = [1500]
+    samples = [2500]
     # samples = [-1]
     # samples = [1000, 1500, -1]
 difference_samples = 10

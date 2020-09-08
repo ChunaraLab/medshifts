@@ -108,7 +108,7 @@ if not os.path.exists(path):
 # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
 # feature_groups = [['labs'], ['vitals'], ['demo']]
 # feature_groups = [['saps2'], ['labs','vitals','demo','others','saps2diff'], ['labs'], ['vitals'], ['demo']]
-feature_groups = [['APACHE_covariate']]
+feature_groups = [['demographic'], ['vitals'], ['labs','labs_blood_gas'],['APACHE_covariate']]
 # feature_groups = [['APACHE_covariate'], ['labs','labs_blood_gas'], ['vitals'], ['APACHE_comorbidity'],
 #                     ['demographic','vitals','labs','labs_blood_gas','APACHE_comorbidity']]
 
@@ -152,7 +152,7 @@ if test_type == 'multiv':
     md_tests = [MultidimensionalTest.MMD.value]
     # samples = [10, 20, 50, 100, 200, 500, 1000]
     # samples = [100, 1000]
-    samples = [1500]
+    samples = [2500]
     # samples = [1000, 1500]
     # samples = [10, 20, 50, 100, 200]
 else:
@@ -161,7 +161,7 @@ else:
     md_tests = []
     # samples = [10, 20, 50, 100, 200, 500, 1000, 9000]
     # samples = [100, 1000]
-    samples = [1500]
+    samples = [2500]
     # samples = [1000, 1500]
     # samples = [10, 20, 50, 100, 200, 500]
 difference_samples = 10
