@@ -136,6 +136,15 @@ HospitalIDs_eicu = [73, 264, 338, 443, 458, 420, 252, 300, 122, 243, 188, 449, 2
 HospitalIDs_gossis = [118, 19, 188, 161, 70, 196, 176, 21, 194, 174, 100, 55,
                     185, 79, 18, 157, 62, 39, 112, 76]
 
+HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_teach_midw.csv',
+                        'X_eicu_day1_saps2_n500_teach_s.csv',
+                        'X_eicu_day1_saps2_n500_noteach_midw.csv',
+                        'X_eicu_day1_saps2_n500_noteach_s.csv']
+HospitalGroupsColnames_eicu = ['nbed500,teach,midwest',
+                        'nbed500,teach,south',
+                        'nbed500,noteach,midwest',
+                        'nbed500,noteach,south']
+
 def __unison_shuffled_copies(a, b, c):
     assert len(a) == len(b)
     assert len(a) == len(c)
@@ -179,7 +188,7 @@ def import_hosp_dataset(dataset):
         df = pd.read_csv(external_dataset_path + 'X_eicu_day1.csv.gz', sep=',', index_col=0)
     return df
 
-def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuffle=False):
+def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_group, shuffle=False):
     '''
     :param hosp_train, hosp_test: hospital IDs to include in train and test set
     :param min_trans: minimum transactions per hospital for inclusion
@@ -204,14 +213,23 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuf
     '''
     From https://github.com/alistairewj/icu-model-transfer/blob/master/evaluate-model.ipynb
     '''
-    df_eicu = pd.read_csv(external_dataset_path + data_filename, sep=',', index_col=index_col) # TODO move filename to main file
-    # hosp_to_keep = df_eicu[hospitalid_var].value_counts()
-    # hosp_to_keep = hosp_to_keep[hosp_to_keep>=min_trans].index.values
-    # print('Retaining {} of {} hospitals with at least 100 patients.'.format(
-    #     len(hosp_to_keep), df_eicu[hospitalid_var].nunique()))
 
-    df_eicu_train = df_eicu.loc[df_eicu[hospitalid_var].isin(np.array(hosp_train)), :]
-    df_eicu_test = df_eicu.loc[df_eicu[hospitalid_var].isin(np.array(hosp_test)), :]
+    if use_group:
+        hosp_train = hosp_train[0]
+        hosp_test = hosp_test[0]
+        df_eicu_train = pd.read_csv(external_dataset_path + hosp_train, sep=',', index_col=index_col)
+        df_eicu_test = pd.read_csv(external_dataset_path + hosp_test, sep=',', index_col=index_col)
+        # print(df_eicu_train.head())
+        # print(df_eicu_test.head())
+
+    else:
+        df_eicu = pd.read_csv(external_dataset_path + data_filename, sep=',', index_col=index_col) # TODO move filename to main file
+        # hosp_to_keep = df_eicu[hospitalid_var].value_counts()
+        # hosp_to_keep = hosp_to_keep[hosp_to_keep>=min_trans].index.values
+        # print('Retaining {} of {} hospitals with at least 100 patients.'.format(
+        #     len(hosp_to_keep), df_eicu[hospitalid_var].nunique()))
+        df_eicu_train = df_eicu.loc[df_eicu[hospitalid_var].isin(np.array(hosp_train)), :]
+        df_eicu_test = df_eicu.loc[df_eicu[hospitalid_var].isin(np.array(hosp_test)), :]
 
     # Extract required features. Remove target and other vars
     y_train = df_eicu_train[target].values

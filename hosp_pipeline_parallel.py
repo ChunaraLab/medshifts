@@ -6,7 +6,7 @@ Detect shifts across hospitals
 
 Usage
 for multivaritate tests:
-python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 5 --random_runs 10 --min_samples 1500
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 5 --random_runs 10 --min_samples 5000 --group
 
 for univaritate tests:
 python hosp_pipeline_parallel.py eicu orig univ mean
@@ -41,6 +41,7 @@ import argparse
 import numpy as np
 import tensorflow
 from itertools import combinations
+import time
 seed = 1
 np.random.seed(seed)
 tensorflow.random.set_seed(seed)
@@ -52,65 +53,11 @@ from data_utils import *
 import os
 import sys
 from exp_utils import *
+from plot_utils import *
 
 import multiprocessing
 from joblib import Parallel, delayed
 num_cores = min(25, multiprocessing.cpu_count())
-
-# -------------------------------------------------
-# PLOTTING HELPERS
-# -------------------------------------------------
-
-import matplotlib.pyplot as plt
-from matplotlib import rc
-rc('font',**{'family':'serif','serif':['Times']})
-rc('text', usetex=True)
-rc('axes', labelsize=20)
-rc('xtick', labelsize=20)
-rc('ytick', labelsize=20)
-rc('legend', fontsize=12)
-
-def clamp(val, minimum=0, maximum=255):
-    if val < minimum:
-        return minimum
-    if val > maximum:
-        return maximum
-    return val
-
-def colorscale(hexstr, scalefactor):
-    hexstr = hexstr.strip('#')
-
-    if scalefactor < 0 or len(hexstr) != 6:
-        return hexstr
-
-    r, g, b = int(hexstr[:2], 16), int(hexstr[2:4], 16), int(hexstr[4:], 16)
-
-    r = clamp(r * scalefactor)
-    g = clamp(g * scalefactor)
-    b = clamp(b * scalefactor)
-
-    return "#%02x%02x%02x" % (int(r), int(g), int(b))
-
-linestyles = ['-', '-.', '--', ':']
-brightness = [1.25, 1.0, 0.75, 0.5]
-format = ['-o', '-h', '-p', '-s', '-D', '-<', '->', '-X']
-markers = ['o', 'h', 'p', 's', 'D', '<', '>', 'X']
-colors_old = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-              '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-              '#bcbd22', '#17becf']
-colors = ['#2196f3', '#f44336', '#9c27b0', '#64dd17', '#009688', '#ff9800', '#795548', '#607d8b']
-
-def errorfill(x, y, yerr, color=None, alpha_fill=0.2, ax=None, fmt='-o', label=None):
-    ax = ax if ax is not None else plt.gca()
-    if color is None:
-        color = next(ax._get_lines.prop_cycler)['color']
-    if np.isscalar(yerr) or len(yerr) == len(y):
-        ymin = y - yerr
-        ymax = y + yerr
-    elif len(yerr) == 2:
-        ymin, ymax = yerr
-    ax.semilogx(x, y, fmt, color=color, label=label)
-    ax.fill_between(x, np.clip(ymax, 0, 1), np.clip(ymin, 0, 1), color=color, alpha=alpha_fill)
 
 # -------------------------------------------------
 # CONFIG
@@ -126,18 +73,18 @@ parser.add_argument("--test_type", type=str, default='multiv')
 parser.add_argument("--missing_imp", type=str, default='mean')
 parser.add_argument("--num_hosp", type=int, default=5)
 parser.add_argument("--random_runs", type=int, default=10)
-parser.add_argument("--min_samples", type=int, default=1500)
+parser.add_argument("--min_samples", type=int, default=5000)
+parser.add_argument("--group", action='store_true')
 args = parser.parse_args()
 
-datset = args.datset # sys.argv[1]
-test_type = args.test_type # sys.argv[3]
-missing_imp = args.missing_imp # sys.argv[4]
+datset = args.datset
+test_type = args.test_type
+missing_imp = args.missing_imp
+use_group = args.group
 
-path = './hosp_results_{}'.format(args.datset)
-# path = './hosp_results_gossis/'
-path += test_type + '/'
-path += datset + '_'
-path += args.path + '/' # sys.argv[2]
+# path = './hosp_results_gossis_multiv/'
+path = './hosp_results_{}_{}/'.format(datset, test_type)
+path += '{}_nh{}_run{}_mins{}_{}/'.format(datset, args.num_hosp, args.random_runs, args.min_samples, args.path)
 
 if not os.path.exists(path):
     os.makedirs(path)
@@ -147,7 +94,10 @@ NUM_HOSPITALS_TOP = args.num_hosp #2 # hospitals with records >= 1000
 hosp_pairs = []
 # TODO move to data_utils
 if datset =='eicu':
-    HospitalIDs = HospitalIDs_eicu
+    if use_group:
+        HospitalIDs = HospitalGroups_eicu
+    else: # single hospitals
+        HospitalIDs = HospitalIDs_eicu
     FeatureGroups = FeatureGroups_eicu
 
     # Define feature groups
@@ -173,16 +123,17 @@ for hi in HospitalIDs:
     for hj in HospitalIDs:
         hosp_pairs.append(([hi],[hj]))
 # hosp_pairs = [([394],[416])]
+print('Use groups', use_group, 'Hospital pairs', hosp_pairs)
 
 # Define DR methods
 # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value, DimensionalityReduction.BBSDh.value]
-# dr_techniques = [DimensionalityReduction.NoRed.value]
-dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
+dr_techniques = [DimensionalityReduction.NoRed.value]
+# dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
 # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
 if test_type == 'multiv':
     # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value]
-    # dr_techniques = [DimensionalityReduction.NoRed.value]
-    dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
+    dr_techniques = [DimensionalityReduction.NoRed.value]
+    # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
     # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
 if test_type == 'univ':
     dr_techniques_plot = dr_techniques.copy()
@@ -234,7 +185,7 @@ shifts = ['orig']
 # PIPELINE START
 # -------------------------------------------------
 
-def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pair_idx, hosp_train, hosp_test):
+def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, use_group):
     print("\n========\nFeature Set, Hosp Train, Hosp Test", target, feature_group, hosp_train, hosp_test)
     print("========\n")
 
@@ -288,8 +239,9 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
             tensorflow.random.set_seed(rand_run)
 
             # Load data
+            time_now = time.time()
             # print('Original')
-            (X_tr_orig, y_tr_orig, sens_tr_orig), (X_val_orig, y_val_orig, sens_val_orig), (X_te_orig, y_te_orig, sens_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=False)
+            (X_tr_orig, y_tr_orig, sens_tr_orig), (X_val_orig, y_val_orig, sens_val_orig), (X_te_orig, y_te_orig, sens_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, use_group, shuffle=False)
             # X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
             # X_te_orig = normalize_datapoints(X_te_orig, 255.)
             # X_val_orig = normalize_datapoints(X_val_orig, 255.)
@@ -299,7 +251,7 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
 
             # Apply shift
             if shift != 'orig':
-                (X_tr_orig, y_tr_orig, sens_tr_orig), (X_val_orig, y_val_orig, sens_val_orig), (X_te_orig, y_te_orig, sens_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=True)
+                (X_tr_orig, y_tr_orig, sens_tr_orig), (X_val_orig, y_val_orig, sens_val_orig), (X_te_orig, y_te_orig, sens_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, use_group, shuffle=True)
                 # X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
                 # X_te_orig = normalize_datapoints(X_te_orig, 255.)
                 # X_val_orig = normalize_datapoints(X_val_orig, 255.)
@@ -309,6 +261,9 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
 
             red_dim = -1
             red_models = [None] * len(DimensionalityReduction) # new model for each shift, random run
+            
+            time_diff = time.time() - time_now
+            print('Time: {}s taken in reading data\n{}, {}, {}'.format(time_diff, rand_run, hosp_train, hosp_test))
 
             # Check detection performance for different numbers of samples from test
             for si, sample in enumerate(samples):
@@ -349,12 +304,16 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
                 # y_tr_3 = np.copy(y_tr_orig)
 
                 # Detect shift
+                time_now = time.time()
                 shift_detector = ShiftDetector(dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset)
                 (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals),\
                 (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals),\
                 red_dim, red_models, tr_auc, te_val_auc_diff, tr_smr, te_val_smr_diff,\
                 tr_eo, tr_dp, val_eo, val_dp, te_eo, te_dp\
                  = shift_detector.detect_data_shift(X_tr_3, y_tr_3, sens_tr_3, X_val_3, y_val_3, sens_val_3, X_te_3, y_te_3, sens_te_3, orig_dims, nb_classes)
+
+                time_diff = time.time() - time_now
+                print('Time: {}s taken in detecting shift\n{}, {}, {}'.format(time_diff, rand_run, hosp_train, hosp_test))
 
                 rand_run_tr_auc[si, rand_run] = tr_auc
                 rand_run_te_auc[si, rand_run] = te_val_auc_diff
@@ -572,5 +531,5 @@ if __name__ == "__main__":
             # for subs in combinations(FeatureGroups[group], 2):
             #     feature_sets.append(list(subs)) # TODO de-duplicate
 
-        Parallel(n_jobs=num_cores)(delayed(test_hosp_pair)(df, target, feature_set, feature_set_idx, feature_group,\
-                                            hosp_pair_idx, hosp_train, hosp_test) for hosp_pair_idx, (hosp_train, hosp_test) in enumerate(hosp_pairs))
+        Parallel(n_jobs=num_cores)(delayed(test_hosp_pair)(df, target, feature_set, feature_group,\
+                                            hosp_train, hosp_test, use_group) for (hosp_train, hosp_test) in hosp_pairs)

@@ -3,7 +3,7 @@ Written by Stephan Rabanser https://github.com/steverab/failing-loudly
 Modifed
 
 Usage:
-python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 5 --random_runs 10 --min_samples 1500
+python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 5 --random_runs 10 --min_samples 1500 --group
 
 Plot test results across hospitals
 '''
@@ -27,61 +27,7 @@ from data_utils import *
 import os
 import sys
 from exp_utils import *
-
-# -------------------------------------------------
-# PLOTTING HELPERS
-# -------------------------------------------------
-
-import matplotlib.pyplot as plt
-from matplotlib import rc
-rc('font',**{'family':'serif','serif':['Times']})
-rc('text', usetex=True)
-rc('axes', labelsize=20)
-rc('xtick', labelsize=20)
-rc('ytick', labelsize=20)
-rc('legend', fontsize=12)
-
-def clamp(val, minimum=0, maximum=255):
-    if val < minimum:
-        return minimum
-    if val > maximum:
-        return maximum
-    return val
-
-def colorscale(hexstr, scalefactor):
-    hexstr = hexstr.strip('#')
-
-    if scalefactor < 0 or len(hexstr) != 6:
-        return hexstr
-
-    r, g, b = int(hexstr[:2], 16), int(hexstr[2:4], 16), int(hexstr[4:], 16)
-
-    r = clamp(r * scalefactor)
-    g = clamp(g * scalefactor)
-    b = clamp(b * scalefactor)
-
-    return "#%02x%02x%02x" % (int(r), int(g), int(b))
-
-linestyles = ['-', '-.', '--', ':']
-brightness = [1.25, 1.0, 0.75, 0.5]
-format = ['-o', '-h', '-p', '-s', '-D', '-<', '->', '-X']
-markers = ['o', 'h', 'p', 's', 'D', '<', '>', 'X']
-colors_old = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-              '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-              '#bcbd22', '#17becf']
-colors = ['#2196f3', '#f44336', '#9c27b0', '#64dd17', '#009688', '#ff9800', '#795548', '#607d8b']
-
-def errorfill(x, y, yerr, color=None, alpha_fill=0.2, ax=None, fmt='-o', label=None):
-    ax = ax if ax is not None else plt.gca()
-    if color is None:
-        color = next(ax._get_lines.prop_cycler)['color']
-    if np.isscalar(yerr) or len(yerr) == len(y):
-        ymin = y - yerr
-        ymax = y + yerr
-    elif len(yerr) == 2:
-        ymin, ymax = yerr
-    ax.semilogx(x, y, fmt, color=color, label=label)
-    ax.fill_between(x, np.clip(ymax, 0, 1), np.clip(ymin, 0, 1), color=color, alpha=alpha_fill)
+from plot_utils import *
 
 # -------------------------------------------------
 # CONFIG
@@ -97,16 +43,16 @@ parser.add_argument("--test_type", type=str, default='multiv')
 parser.add_argument("--num_hosp", type=int, default=5)
 parser.add_argument("--random_runs", type=int, default=10)
 parser.add_argument("--min_samples", type=int, default=1500)
+parser.add_argument("--group", action='store_true')
 args = parser.parse_args()
 
 datset = args.datset # sys.argv[1]
 test_type = args.test_type # sys.argv[3]
+use_group = args.group
 
-path = './hosp_results_{}'.format(args.datset)
-# path = './hosp_results_gossis/'
-path += test_type + '/'
-path += datset + '_'
-path += args.path + '/' # sys.argv[2]
+# path = './hosp_results_gossis_multiv/'
+path = './hosp_results_{}_{}/'.format(datset, test_type)
+path += '{}_nh{}_run{}_mins{}_{}/'.format(datset, args.num_hosp, args.random_runs, args.min_samples, args.path)
 
 if not os.path.exists(path):
     os.makedirs(path)
@@ -116,7 +62,11 @@ NUM_HOSPITALS_TOP = args.num_hosp # 5 # hospitals with records >= 1000
 hosp_pairs = []
 # TODO move to data_utils
 if datset =='eicu':
-    HospitalIDs = HospitalIDs_eicu
+    if use_group:
+        HospitalIDs = HospitalGroups_eicu
+        HospitalIDsColnames = HospitalGroupsColnames_eicu
+    else: # single hospitals
+        HospitalIDs = HospitalIDs_eicu
     FeatureGroups = FeatureGroups_eicu
 
     # Define feature groups
@@ -139,20 +89,23 @@ elif datset =='gossis':
 
 
 HospitalIDs = HospitalIDs[:NUM_HOSPITALS_TOP]
+HospitalIDsColnames = HospitalIDsColnames[:NUM_HOSPITALS_TOP]
 # HospitalIDs = [i for i in HospitalIDs if i not in [413,394,199,345]]
 for hi in range(len(HospitalIDs)):
     for hj in range(len(HospitalIDs)):
         hosp_pairs.append((hi,hj,[HospitalIDs[hi]],[HospitalIDs[hj]]))
 # hosp_pairs = [([394],[416])]
+print('Use groups', use_group, 'Hospital pairs', hosp_pairs)
 
 # Define DR methods
 # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value, DimensionalityReduction.BBSDh.value]
-# dr_techniques = [DimensionalityReduction.NoRed.value]
-dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
+dr_techniques = [DimensionalityReduction.NoRed.value]
+# dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
 # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
 if test_type == 'multiv':
     # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value]
-    dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
+    dr_techniques = [DimensionalityReduction.NoRed.value]
+    # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value]
     # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value]
 if test_type == 'univ':
     dr_techniques_plot = dr_techniques.copy()
@@ -331,10 +284,11 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                         hosp_pair_eo[hosp_train_idx, hosp_test_idx] = mean_te_eo
                         hosp_pair_dp[hosp_train_idx, hosp_test_idx] = mean_te_dp
 
+                # p-value MMD test
                 hosp_avg_pval = hosp_pair_pval.mean(axis=1)
                 hosp_pair_pval_triu = np.triu(np.ones_like(hosp_pair_pval, dtype=np.bool))
                 np.fill_diagonal(hosp_pair_pval_triu, False)
-                hosp_pair_pval = pd.DataFrame(hosp_pair_pval, columns=HospitalIDs, index=HospitalIDs)
+                hosp_pair_pval = pd.DataFrame(hosp_pair_pval, columns=HospitalIDsColnames, index=HospitalIDsColnames)
                 hosp_pair_pval.to_csv("%s/%s_%s_%s_p_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
                 # cmap_binary = sns.cubehelix_palette(2, hue=0.05, rot=0, light=0.9, dark=0)
                 # fig = sns.heatmap(hosp_pair_pval, linewidths=0.5, cmap=ListedColormap(cmap_binary))
@@ -342,8 +296,8 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                 colorbar = fig.collections[0].colorbar
                 colorbar.set_ticks([0.25, 0.75])
                 colorbar.set_ticklabels(['No Shift', 'Shift'])
-                plt.xlabel('Hospital ID') # Target
-                plt.ylabel('Hospital ID') # Source
+                plt.xlabel('Target Hospital ID') # Target
+                plt.ylabel('Source Hospital ID') # Source
                 plt.savefig("%s/%s_%s_%s_p_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                 plt.clf()
                 
@@ -372,7 +326,7 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
 
                 # Minimum of the pairwise average tval in subsets of 5 hospitals
                 MAX_NUM_SUBSET = 5
-                HospitalIDs_ = np.array(HospitalIDs)
+                HospitalIDs_ = np.array(HospitalIDsColnames)
                 for num_subset in range(1, MAX_NUM_SUBSET+1):
                     avg_tval_subset = []
                     for subs in combinations(range(len(HospitalIDs_)), num_subset):
@@ -382,16 +336,17 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                     avg_tval_subset_sorted = pd.DataFrame(avg_tval_subset_sorted, columns=['HospitalIDs','average_MMD'])
                     avg_tval_subset_sorted.to_csv("%s/%s_%s_%s_%s_t_val_min_subset.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample, num_subset), index=False)
 
+                # MMD statistic value
                 hosp_avg_tval = hosp_pair_tval.mean(axis=1)
                 hosp_pair_tval_triu = np.triu(np.ones_like(hosp_pair_tval, dtype=np.bool))
                 np.fill_diagonal(hosp_pair_tval_triu, False)
-                hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDs, index=HospitalIDs)
+                hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDsColnames, index=HospitalIDsColnames)
                 hosp_pair_tval.to_csv("%s/%s_%s_%s_t_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
                 # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                 # fig = sns.heatmap(hosp_pair_tval, linewidths=0.5, cmap=cmap)
                 fig = sns.heatmap(hosp_pair_tval, mask=hosp_pair_tval_triu, linewidths=0.5, cmap=cmap)
-                plt.xlabel('Hospital ID') # Target
-                plt.ylabel('Hospital ID') # Source
+                plt.xlabel('Target Hospital ID') # Target
+                plt.ylabel('Source Hospital ID') # Source
                 plt.savefig("%s/%s_%s_%s_t_val_hmp.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                 plt.clf()
 
@@ -402,7 +357,7 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                     # AUC
                     hosp_avg_auc = hosp_pair_auc.mean(axis=1)
                     hosp_min_auc = hosp_pair_auc.min(axis=1)
-                    hosp_pair_auc = pd.DataFrame(hosp_pair_auc, columns=HospitalIDs, index=HospitalIDs)
+                    hosp_pair_auc = pd.DataFrame(hosp_pair_auc, columns=HospitalIDsColnames, index=HospitalIDsColnames)
                     hosp_pair_auc.to_csv("%s/%s_%s_%s_te_val_diff_auc_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
                     # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                     fig = sns.heatmap(hosp_pair_auc, linewidths=0.5, cmap=cmap)
@@ -416,7 +371,7 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
 
                     # SMR
                     hosp_avg_smr = hosp_pair_smr.mean(axis=1)
-                    hosp_pair_smr = pd.DataFrame(hosp_pair_smr, columns=HospitalIDs, index=HospitalIDs)
+                    hosp_pair_smr = pd.DataFrame(hosp_pair_smr, columns=HospitalIDsColnames, index=HospitalIDsColnames)
                     hosp_pair_smr.to_csv("%s/%s_%s_%s_te_val_diff_smr_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
                     # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                     fig = sns.heatmap(hosp_pair_smr, linewidths=0.5, cmap=cmap)
@@ -430,7 +385,7 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
 
                     # EO
                     hosp_avg_eo = hosp_pair_eo.mean(axis=1)
-                    hosp_pair_eo = pd.DataFrame(hosp_pair_eo, columns=HospitalIDs, index=HospitalIDs)
+                    hosp_pair_eo = pd.DataFrame(hosp_pair_eo, columns=HospitalIDsColnames, index=HospitalIDsColnames)
                     hosp_pair_eo.to_csv("%s/%s_%s_%s_te_val_diff_eo_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
                     # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                     fig = sns.heatmap(hosp_pair_eo, linewidths=0.5, cmap=cmap)
@@ -444,7 +399,7 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
 
                     # DP
                     hosp_avg_dp = hosp_pair_dp.mean(axis=1)
-                    hosp_pair_dp = pd.DataFrame(hosp_pair_dp, columns=HospitalIDs, index=HospitalIDs)
+                    hosp_pair_dp = pd.DataFrame(hosp_pair_dp, columns=HospitalIDsColnames, index=HospitalIDsColnames)
                     hosp_pair_dp.to_csv("%s/%s_%s_%s_te_val_diff_dp_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
                     # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                     fig = sns.heatmap(hosp_pair_dp, linewidths=0.5, cmap=cmap)
@@ -466,6 +421,8 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                                                     left_on=['Source','Target'], right_on = ['Source','Target'])\
                                                 .merge(hosp_all_pairs_dp, how='left',
                                                     left_on=['Source','Target'], right_on = ['Source','Target'])
+                                                
+                    # plot only across hospital results
                     h_stats = h_stats[h_stats.Source!=h_stats.Target]
                     
                     # AUC
