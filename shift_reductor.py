@@ -12,6 +12,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn import metrics
 import joblib
+from fairlearn.metrics import group_recall_score, group_specificity_score, group_accuracy_score, group_mean_prediction
 
 from keras.layers import Input, Dense, Dropout, Activation, Conv2D, MaxPooling2D, UpSampling2D
 from keras.models import Model, Sequential
@@ -31,6 +32,32 @@ import keras
 # SHIFT REDUCTOR
 # -------------------------------------------------
 
+
+def max_equalized_odds_violation(target, predictions, sensitive_feature):
+    '''
+    Maximum violation of equalized odds constraint. From fair reductions paper,
+    max_{y,a} |E[h(X)|Y=y,A=a]-E[h(X)|Y=y]|
+    :param sensitive_feature: actual value of the sensitive feature
+    '''
+    tpr = group_recall_score(target, predictions, sensitive_feature)
+    specificity = group_specificity_score(target, predictions, sensitive_feature) # 1-fpr
+    
+    max_violation = max([abs(tpr_group-tpr.overall) for tpr_group in tpr.by_group.values()] +
+        [abs(spec_group-specificity.overall) for spec_group in specificity.by_group.values()])
+    
+    return max_violation
+
+def max_demography_parity_violation(target, predictions, sensitive_feature):
+    '''
+    Maximum violation of demographic parity constraint.
+    max_{a} |E[h(X)|A=a]-min_{a} |E[h(X)|A=a]
+    :param sensitive_feature: actual value of the sensitive feature
+    '''
+    acc = group_mean_prediction(target, predictions, sensitive_feature)
+    acc_ad = [i for i in acc.by_group.values()]
+    max_violation = abs(acc_ad[0]-acc_ad[1])
+    
+    return max_violation
 
 class ShiftReductor:
 
@@ -105,9 +132,10 @@ class ShiftReductor:
             pred = np.argmax(pred, axis=1)
             return pred
 
-    def evaluate(self, model, X, y):
+    def evaluate(self, model, X, y, sens):
         if self.dr_tech == DimensionalityReduction.NoRed: # TODO calculate accuracy in separate class than dimension reduction
             prob = model.predict_proba(X)[:,1]
+            pred = model.predict(X)
             d = dict()
     
             # calculate SMR
@@ -122,7 +150,12 @@ class ShiftReductor:
                 d['auc'] = np.nan
             else:
                 d['auc'] = metrics.roc_auc_score(y, prob)
-            return d['auc'], d['smr'] # TODO return other metrics also
+
+            # calculate fairness metrics
+            d['eo'] = max_equalized_odds_violation(y, pred, sens)
+            d['dp'] = max_demography_parity_violation(y, pred, sens)
+
+            return d['auc'], d['smr'], d['eo'], d['dp'] # TODO return other metrics also
 
     def sparse_random_projection(self):
         srp = SparseRandomProjection(n_components=self.dr_amount)

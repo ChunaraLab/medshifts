@@ -6,12 +6,13 @@ Detect shifts across hospitals
 
 Usage
 for multivaritate tests:
-python hosp_pipeline_parallel.py eicu orig multiv mean
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 5 --random_runs 10 --min_samples 1500
 
 for univaritate tests:
 python hosp_pipeline_parallel.py eicu orig univ mean
 
 # TODO
+quantify shift by discriminate between train test
 sample size vs acc, smr Johnson plot with all train in X_tr_3, y_tr_3
 frequency univariate
 colorcode scatterplot by hospital meta data
@@ -36,12 +37,13 @@ move filename in data_utils to main file
 2 rows less, 70128 orig vs now 70126
 '''
 
+import argparse
 import numpy as np
-from tensorflow import set_random_seed
+import tensorflow
 from itertools import combinations
 seed = 1
 np.random.seed(seed)
-set_random_seed(seed)
+tensorflow.random.set_seed(seed)
 
 from shift_detector import *
 from shift_locator import *
@@ -117,40 +119,54 @@ def errorfill(x, y, yerr, color=None, alpha_fill=0.2, ax=None, fmt='-o', label=N
 # make_keras_picklable()
 np.set_printoptions(threshold=sys.maxsize)
 
-datset = sys.argv[1]
-test_type = sys.argv[3]
-missing_imp = sys.argv[4]
+parser = argparse.ArgumentParser()
+parser.add_argument("--datset", type=str, default='eicu')
+parser.add_argument("--path", type=str, default='orig')
+parser.add_argument("--test_type", type=str, default='multiv')
+parser.add_argument("--missing_imp", type=str, default='mean')
+parser.add_argument("--num_hosp", type=int, default=5)
+parser.add_argument("--random_runs", type=int, default=10)
+parser.add_argument("--min_samples", type=int, default=1500)
+args = parser.parse_args()
 
-path = './hosp_results_gossis/'
+datset = args.datset # sys.argv[1]
+test_type = args.test_type # sys.argv[3]
+missing_imp = args.missing_imp # sys.argv[4]
+
+path = './hosp_results_{}'.format(args.datset)
+# path = './hosp_results_gossis/'
 path += test_type + '/'
 path += datset + '_'
-path += sys.argv[2] + '/'
+path += args.path + '/' # sys.argv[2]
 
 if not os.path.exists(path):
     os.makedirs(path)
 
-# Define feature groups
-# feature_groups = [['labs','vitals','demo','others','saps2diff']]
-# feature_groups = [['labs','labs_blood_gas']]
-# feature_groups = [['vitals']]
-# feature_groups = [['demo']]
-# feature_groups = [['demographic']]
-# feature_groups = [['saps2']]
-# feature_groups = [['saps2'], ['labs','vitals','demo','others']]
-feature_groups = [['demographic'], ['vitals'], ['labs','labs_blood_gas'],['APACHE_covariate']]
-# feature_groups = [['APACHE_covariate'], ['labs','labs_blood_gas'], ['vitals'], ['APACHE_comorbidity'],
-#                     ['demographic','vitals','labs','labs_blood_gas','APACHE_comorbidity']]
-
 # Define train-test pairs of hospitals
-NUM_HOSPITALS_TOP = 5 # hospitals with records >= 1000
+NUM_HOSPITALS_TOP = args.num_hosp #2 # hospitals with records >= 1000
 hosp_pairs = []
 # TODO move to data_utils
 if datset =='eicu':
     HospitalIDs = HospitalIDs_eicu
     FeatureGroups = FeatureGroups_eicu
+
+    # Define feature groups
+    # feature_groups = [['labs','vitals','demo','others','saps2diff']]
+    # feature_groups = [['labs','labs_blood_gas']]
+    # feature_groups = [['vitals']]
+    # feature_groups = [['demo']]
+    # feature_groups = [['demographic']]
+    feature_groups = [['saps2']]
+    # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
 elif datset =='gossis':
     HospitalIDs = HospitalIDs_gossis
     FeatureGroups = FeatureGroups_gossis
+    
+    # Define feature groups
+    feature_groups = [['APACHE_covariate']]
+    # feature_groups = [['demographic'], ['vitals'], ['labs','labs_blood_gas'],['APACHE_covariate']]
+    # feature_groups = [['APACHE_covariate'], ['labs','labs_blood_gas'], ['vitals'], ['APACHE_comorbidity'],
+    #                     ['demographic','vitals','labs','labs_blood_gas','APACHE_comorbidity']]
 
 HospitalIDs = HospitalIDs[:NUM_HOSPITALS_TOP]
 for hi in HospitalIDs:
@@ -179,16 +195,16 @@ test_types = [td.value for td in TestDimensionality]
 if test_type == 'multiv':
     od_tests = []
     md_tests = [MultidimensionalTest.MMD.value]
-    # samples = [1500]
-    samples = [2500]
+    samples = [args.min_samples]
+    # samples = [2500]
     # samples = [-1]
     # samples = [1000, 1500, -1]
 else:
     # od_tests = [od.value for od in OnedimensionalTest]
     od_tests = [OnedimensionalTest.KS.value]
     md_tests = []
-    # samples = [1500]
-    samples = [2500]
+    samples = [args.min_samples]
+    # samples = [2500]
     # samples = [-1]
     # samples = [1000, 1500, -1]
 difference_samples = 10
@@ -199,19 +215,20 @@ else:
     missing_techniques = ['mean']
 
 # Number of random runs to average results over    
-random_runs = 5
+random_runs = args.random_runs # 5
 
 # Signifiance level
 sign_level = 0.05
 
 # Define shift types
-if sys.argv[2] == 'orig':
-    shifts = ['orig']
-    brightness = [0.75]
-    # shifts = ['rand', 'orig']
-    # brightness = [1.25, 0.75]
-else:
-    shifts = []
+# if args.path == 'orig': # sys.argv[2]
+#     shifts = ['orig']
+#     brightness = [0.75]
+#     # shifts = ['rand', 'orig']
+#     # brightness = [1.25, 0.75]
+# else:
+#     shifts = []
+shifts = ['orig']
 
 # -------------------------------------------------
 # PIPELINE START
@@ -228,7 +245,7 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
 
     samples_shifts_rands_dr_tech = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot))) * (-1) # TODO add hosp_pair
     samples_shifts_rands_dr_tech_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot))) * (-1) # TODO add hosp_pair
-    samples_shifts_rands_te_acc = np.ones((len(samples), len(shifts), random_runs, 2)) * (-1) # 0-auc, 1-smr # TODO add auc, smr, p-val, mmd in same array. add hosp_pair
+    samples_shifts_rands_te_acc = np.ones((len(samples), len(shifts), random_runs, 4)) * (-1) # 0-auc, 1-smr, 2-eo, 3-dp # TODO add auc, smr, p-val, mmd in same array. add hosp_pair
 
     samples_shifts_rands_feat_p_vals = np.ones((len(samples), len(shifts), len(dr_techniques_plot), len(od_tests), len(features), random_runs)) * (-1)
     samples_shifts_rands_feat_t_vals = np.ones((len(samples), len(shifts), len(dr_techniques_plot), len(od_tests), len(features), random_runs)) * (-1)
@@ -248,6 +265,14 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
         rand_run_tr_smr = np.ones((len(samples), random_runs)) * (-1)
         rand_run_te_smr = np.ones((len(samples), random_runs)) * (-1)
 
+
+        rand_run_tr_eo = np.ones((len(samples), random_runs)) * (-1)
+        rand_run_tr_dp = np.ones((len(samples), random_runs)) * (-1)
+        rand_run_val_eo = np.ones((len(samples), random_runs)) * (-1)
+        rand_run_val_dp = np.ones((len(samples), random_runs)) * (-1)
+        rand_run_te_eo = np.ones((len(samples), random_runs)) * (-1)
+        rand_run_te_dp = np.ones((len(samples), random_runs)) * (-1)
+
         rand_run_feat_p_vals = np.ones((len(samples), len(dr_techniques_plot), len(od_tests), len(features), random_runs)) * (-1)
         rand_run_feat_t_vals = np.ones((len(samples), len(dr_techniques_plot), len(od_tests), len(features), random_runs)) * (-1)
 
@@ -260,26 +285,27 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
                 os.makedirs(rand_run_path)
 
             np.random.seed(rand_run)
-            set_random_seed(rand_run)
+            tensorflow.random.set_seed(rand_run)
 
             # Load data
             # print('Original')
-            (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=False)
+            (X_tr_orig, y_tr_orig, sens_tr_orig), (X_val_orig, y_val_orig, sens_val_orig), (X_te_orig, y_te_orig, sens_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=False)
             # X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
             # X_te_orig = normalize_datapoints(X_te_orig, 255.)
             # X_val_orig = normalize_datapoints(X_val_orig, 255.)
             X_te_1 = X_te_orig.copy()
             y_te_1 = y_te_orig.copy()
+            sens_te_1 = sens_te_orig.copy()
 
             # Apply shift
             if shift != 'orig':
-                (X_tr_orig, y_tr_orig), (X_val_orig, y_val_orig), (X_te_orig, y_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=True)
+                (X_tr_orig, y_tr_orig, sens_tr_orig), (X_val_orig, y_val_orig, sens_val_orig), (X_te_orig, y_te_orig, sens_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, shuffle=True)
                 # X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
                 # X_te_orig = normalize_datapoints(X_te_orig, 255.)
                 # X_val_orig = normalize_datapoints(X_val_orig, 255.)
                 (X_te_1, y_te_1) = apply_shift(X_te_orig, y_te_orig, shift, orig_dims, datset)
 
-            X_te_2 , y_te_2 = random_shuffle(X_te_1, y_te_1)
+            X_te_2 , y_te_2, sens_te_2 = random_shuffle(X_te_1, y_te_1, sens_te_1)
 
             red_dim = -1
             red_models = [None] * len(DimensionalityReduction) # new model for each shift, random run
@@ -297,33 +323,49 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
                 if sample==-1: # use all test and train
                     X_te_3 = X_te_2
                     y_te_3 = y_te_2
+                    sens_te_3 = sens_te_2
 
                     X_val_3 = X_val_orig
                     y_val_3 = y_val_orig
+                    sens_val_3 = sens_val_orig
 
                     X_tr_3 = np.copy(X_tr_orig)
                     y_tr_3 = np.copy(y_tr_orig)
+                    sens_tr_3 = np.copy(sens_tr_orig)
                 else: # reduce test and train to same number of samples
                     X_te_3 = X_te_2[:sample,:]
                     y_te_3 = y_te_2[:sample]
+                    sens_te_3 = sens_te_2[:sample]
                 
                     X_val_3 = X_val_orig[:sample,:]
                     y_val_3 = y_val_orig[:sample]
+                    sens_val_3 = sens_val_orig[:sample]
 
                     X_tr_3 = np.copy(X_tr_orig[:sample,:])
                     y_tr_3 = np.copy(y_tr_orig[:sample])
+                    sens_tr_3 = np.copy(sens_tr_orig[:sample])
                 
                 # X_tr_3 = np.copy(X_tr_orig)
                 # y_tr_3 = np.copy(y_tr_orig)
 
                 # Detect shift
                 shift_detector = ShiftDetector(dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset)
-                (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, red_models, tr_auc, te_val_auc_diff, tr_smr, te_val_smr_diff = shift_detector.detect_data_shift(X_tr_3, y_tr_3, X_val_3, y_val_3, X_te_3, y_te_3, orig_dims, nb_classes)
+                (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals),\
+                (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals),\
+                red_dim, red_models, tr_auc, te_val_auc_diff, tr_smr, te_val_smr_diff,\
+                tr_eo, tr_dp, val_eo, val_dp, te_eo, te_dp\
+                 = shift_detector.detect_data_shift(X_tr_3, y_tr_3, sens_tr_3, X_val_3, y_val_3, sens_val_3, X_te_3, y_te_3, sens_te_3, orig_dims, nb_classes)
 
                 rand_run_tr_auc[si, rand_run] = tr_auc
                 rand_run_te_auc[si, rand_run] = te_val_auc_diff
                 rand_run_tr_smr[si, rand_run] = tr_smr
                 rand_run_te_smr[si, rand_run] = te_val_smr_diff
+                rand_run_tr_eo[si, rand_run] = tr_eo
+                rand_run_tr_dp[si, rand_run] = tr_dp
+                rand_run_val_eo[si, rand_run] = val_eo
+                rand_run_val_dp[si, rand_run] = val_dp
+                rand_run_te_eo[si, rand_run] = te_eo
+                rand_run_te_dp[si, rand_run] = te_dp
 
                 if test_type == 'multiv':
                     # print("Shift decision: ", ind_md_decs.flatten())
@@ -428,7 +470,11 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
         std_te_auc = np.std(rand_run_te_auc, axis=1)
         mean_te_smr = np.mean(rand_run_te_smr, axis=1)
         std_te_smr = np.std(rand_run_te_smr, axis=1)
-
+        mean_te_eo = np.mean(rand_run_te_eo, axis=1)
+        std_te_eo = np.std(rand_run_te_eo, axis=1)
+        mean_te_dp = np.mean(rand_run_te_dp, axis=1)
+        std_te_dp = np.std(rand_run_te_dp, axis=1)
+        
         mean_feat_p_vals = np.mean(rand_run_feat_p_vals, axis=4)
         std_feat_p_vals = np.std(rand_run_feat_p_vals, axis=4)
         # for dr_idx, dr in enumerate(dr_techniques_plot):
@@ -455,6 +501,10 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
         np.savetxt("%s/std_te_auc.csv" % shift_path, std_te_auc, delimiter=",")
         np.savetxt("%s/mean_te_smr.csv" % shift_path, mean_te_smr, delimiter=",")
         np.savetxt("%s/std_te_smr.csv" % shift_path, std_te_smr, delimiter=",")
+        np.savetxt("%s/mean_te_eo.csv" % shift_path, mean_te_eo, delimiter=",")
+        np.savetxt("%s/std_te_eo.csv" % shift_path, std_te_eo, delimiter=",")
+        np.savetxt("%s/mean_te_dp.csv" % shift_path, mean_te_dp, delimiter=",")
+        np.savetxt("%s/std_te_dp.csv" % shift_path, std_te_dp, delimiter=",")
 
         np.save("%s/mean_feat_p_vals.npy" % shift_path, mean_feat_p_vals)
         np.save("%s/std_feat_p_vals.npy" % shift_path, std_feat_p_vals)
@@ -471,6 +521,8 @@ def test_hosp_pair(df, target, features, feature_set_idx, feature_group, hosp_pa
 
         samples_shifts_rands_te_acc[:,shift_idx,:,0] = rand_run_te_auc
         samples_shifts_rands_te_acc[:,shift_idx,:,1] = rand_run_te_smr
+        samples_shifts_rands_te_acc[:,shift_idx,:,2] = rand_run_te_eo
+        samples_shifts_rands_te_acc[:,shift_idx,:,3] = rand_run_te_dp
 
         np.save("%s/samples_shifts_rands_te_acc.npy" % (hosp_path), samples_shifts_rands_te_acc)
 

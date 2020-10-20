@@ -136,10 +136,11 @@ HospitalIDs_eicu = [73, 264, 338, 443, 458, 420, 252, 300, 122, 243, 188, 449, 2
 HospitalIDs_gossis = [118, 19, 188, 161, 70, 196, 176, 21, 194, 174, 100, 55,
                     185, 79, 18, 157, 62, 39, 112, 76]
 
-def __unison_shuffled_copies(a, b):
+def __unison_shuffled_copies(a, b, c):
     assert len(a) == len(b)
+    assert len(a) == len(c)
     p = np.random.permutation(len(a))
-    return a[p], b[p]
+    return a[p], b[p], c[p]
 
 
 def normalize_datapoints(x, factor):
@@ -147,23 +148,26 @@ def normalize_datapoints(x, factor):
     return x
 
 
-def random_shuffle(x, y):
-    x, y = __unison_shuffled_copies(x, y)
-    return x, y
+def random_shuffle(x, y, z):
+    x, y, z = __unison_shuffled_copies(x, y, z)
+    return x, y, z
 
 
-def random_shuffle_and_split(x_train, y_train, x_test, y_test, split_index):
+def random_shuffle_and_split(x_train, y_train, sens_train, x_test, y_test, sens_test, split_index):
     x = np.append(x_train, x_test, axis=0)
     y = np.append(y_train, y_test, axis=0)
+    sens = np.append(sens_train, sens_test, axis=0)
 
-    x, y = __unison_shuffled_copies(x, y)
+    x, y, sens = __unison_shuffled_copies(x, y, sens)
 
     x_train = x[:split_index, :]
     x_test = x[split_index:, :]
     y_train = y[:split_index]
     y_test = y[split_index:]
+    sens_train = sens[:split_index] # assume 1d array for 1 sensitive feature
+    sens_test = sens[split_index:]
 
-    return (x_train, y_train), (x_test, y_test)
+    return (x_train, y_train, sens_train), (x_test, y_test, sens_test)
 
 def import_hosp_dataset(dataset):
     df = None
@@ -188,11 +192,13 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuf
         index_col = 0
         hospitalid_var = 'hospitalid'
         var_other = ['hospitalid', 'death', 'hosp_los', 'ventdays']
+        sensitive_feature = 'is_female'
     elif dataset == 'gossis':
         data_filename = 'training_v2_top15hosp_dummy_gossis.csv'
         index_col = None
         hospitalid_var = 'hospital_id'
         var_other = ['hospital_id', 'hospital_death', 'encounter_id', 'patient_id']
+        sensitive_feature = 'gender_F'
 
     # df_eicu = df.copy()
     '''
@@ -211,10 +217,12 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuf
     y_train = df_eicu_train[target].values
     x_train = df_eicu_train.drop(var_other,axis=1)
     x_train = df_eicu_train[features].values
+    sens_train = df_eicu_train[sensitive_feature].values
 
     y_test = df_eicu_test[target].values
     x_test = df_eicu_test.drop(var_other,axis=1)
     x_test = df_eicu_test[features].values
+    sens_test = df_eicu_test[sensitive_feature].values
 
     # Remove features with all nan from BOTH train and test
     all_nan_train = np.all(np.isnan(x_train), axis=0)
@@ -239,16 +247,25 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuf
     # x_test, y_test = x_eicu[test_idx,:], y_eicu[test_idx]
 
     if shuffle:
-        (x_train, y_train), (x_test, y_test) = random_shuffle_and_split(x_train, y_train, x_test, y_test, len(x_train))
+        x_train = np.append(x_train, sens_train, axis=1) # add sensitive feature at end and remove after permuting
+        x_test = np.append(x_test, sens_test, axis=1)
+        (x_train, y_train), (x_test, y_test) = random_shuffle_and_split(x_train, y_train, sens_train, x_test, y_test, sens_test, len(x_train))
+        sens_train = x_train[:,-1]
+        sens_test = x_test[:,-1]
+        x_train = x_train[:,:-1]
+        x_test = x_test[:,:-1]
 
     # Add 3-way split
     train_size = int(len(x_train)*TRAIN_PROP)
     x_train_spl = np.split(x_train, [train_size])
     y_train_spl = np.split(y_train, [train_size])
+    sens_train_spl = np.split(sens_train, [train_size])
     x_train = x_train_spl[0]
     x_val = x_train_spl[1]
     y_train = y_train_spl[0]
     y_val = y_train_spl[1]
+    sens_train = sens_train_spl[0]
+    sens_val = sens_train_spl[1]
 
     orig_dims = x_train.shape[1:]
 
@@ -259,9 +276,12 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, shuf
     y_train = y_train.reshape(len(y_train))
     y_val = y_val.reshape(len(y_val))
     y_test = y_test.reshape(len(y_test))
+    sens_train = sens_train.reshape(len(sens_train))
+    sens_val = sens_val.reshape(len(sens_val))
+    sens_test = sens_test.reshape(len(sens_test))
     # print('hosp_train, hosp_test, orig_dims, new_dims train, val, test x, y', hosp_train, hosp_test, orig_dims, x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
 
-    return (x_train, y_train), (x_val, y_val), (x_test, y_test), orig_dims, nb_classes
+    return (x_train, y_train, sens_train), (x_val, y_val, sens_val), (x_test, y_test, sens_test), orig_dims, nb_classes
 
 
 def import_dataset(dataset, shuffle=False):

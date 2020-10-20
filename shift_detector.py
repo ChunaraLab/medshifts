@@ -27,7 +27,7 @@ class ShiftDetector:
         self.sample = sample
         self.datset = datset
 
-    def detect_data_shift(self, X_tr, y_tr, X_val, y_val, X_te, y_te, orig_dims, nb_classes):
+    def detect_data_shift(self, X_tr, y_tr, sens_tr, X_val, y_val, sens_val, X_te, y_te, sens_te, orig_dims, nb_classes):
         od_decs = np.ones(len(self.dr_techniques)) * (-1)
         ind_od_decs = np.ones((len(self.dr_techniques), len(self.od_tests))) * (-1)
         ind_od_p_vals = np.ones((len(self.dr_techniques), len(self.od_tests))) * (-1)
@@ -88,9 +88,9 @@ class ShiftDetector:
                 val_acc = np.sum(np.equal(X_val_red, y_val).astype(int))/X_val_red.shape[0]
                 te_acc = np.sum(np.equal(X_te_red, y_te).astype(int))/X_te_red.shape[0]
             elif dr_technique == DimensionalityReduction.NoRed.value: # TODO calculate accuracy in separate class than dimension reduction
-                tr_auc, tr_smr = shift_reductor.evaluate(shift_reductor_model, X_tr, y_tr)
-                val_auc, val_smr = shift_reductor.evaluate(shift_reductor_model, X_val, y_val)
-                te_auc, te_smr = shift_reductor.evaluate(shift_reductor_model, X_te, y_te)
+                tr_auc, tr_smr, tr_eo, tr_dp = shift_reductor.evaluate(shift_reductor_model, X_tr, y_tr, sens_tr)
+                val_auc, val_smr, val_eo, val_dp = shift_reductor.evaluate(shift_reductor_model, X_val, y_val, sens_val)
+                te_auc, te_smr, te_eo, te_dp = shift_reductor.evaluate(shift_reductor_model, X_te, y_te, sens_te)
                 
                 te_val_auc_diff = te_auc - val_auc
                 te_val_smr_diff = te_smr - val_smr
@@ -161,5 +161,8 @@ class ShiftDetector:
                 ind_md_p_vals[dr_ind, :] = np.array(md_loc_p_vals)
                 ind_md_t_vals[dr_ind, :] = np.array(md_loc_t_vals)
 
-        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals), (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models, tr_auc, te_val_auc_diff, tr_smr, te_val_smr_diff
+        return (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals),\
+            (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals), red_dim, self.red_models,\
+            tr_auc, te_val_auc_diff, tr_smr, te_val_smr_diff,\
+            tr_eo, tr_dp, val_eo, val_dp, te_eo, te_dp
 

@@ -5,7 +5,8 @@
 import numpy as np
 import torch
 import random
-from torch import *
+# from torch import *
+import torch
 from torch_two_sample import *
 from scipy.stats import ks_2samp, binom_test, chisquare, chi2_contingency, anderson_ksamp
 from scipy.spatial import distance
