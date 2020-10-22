@@ -12,6 +12,9 @@ for univaritate tests:
 python hosp_pipeline_parallel.py eicu orig univ mean
 
 # TODO
+save accuracy
+check test significance level
+check apache variables for eicu
 quantify shift by discriminate between train test
 sample size vs acc, smr Johnson plot with all train in X_tr_3, y_tr_3
 frequency univariate
@@ -84,7 +87,7 @@ use_group = args.group
 
 # path = './hosp_results_gossis_multiv/'
 path = './hosp_results_{}_{}/'.format(datset, test_type)
-path += '{}_nh{}_run{}_mins{}_{}/'.format(datset, args.num_hosp, args.random_runs, args.min_samples, args.path)
+path += '{}_group{}_nh{}_run{}_mins{}_{}/'.format(datset, use_group, args.num_hosp, args.random_runs, args.min_samples, args.path)
 
 if not os.path.exists(path):
     os.makedirs(path)
@@ -105,7 +108,8 @@ if datset =='eicu':
     # feature_groups = [['labs','labs_blood_gas']]
     # feature_groups = [['vitals']]
     # feature_groups = [['demo']]
-    # feature_groups = [['demographic']]
+    # feature_groups = [['saps2labs','saps2vitals']]
+    # feature_groups = [['labs'], ['vitals'], ['demo']]
     feature_groups = [['saps2']]
     # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
 elif datset =='gossis':
@@ -169,7 +173,8 @@ else:
 random_runs = args.random_runs # 5
 
 # Signifiance level
-sign_level = 0.05
+# sign_level = 0.05
+sign_level = 0.01
 
 # Define shift types
 # if args.path == 'orig': # sys.argv[2]
@@ -242,9 +247,7 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
             time_now = time.time()
             # print('Original')
             (X_tr_orig, y_tr_orig, sens_tr_orig), (X_val_orig, y_val_orig, sens_val_orig), (X_te_orig, y_te_orig, sens_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, use_group, shuffle=False)
-            # X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
-            # X_te_orig = normalize_datapoints(X_te_orig, 255.)
-            # X_val_orig = normalize_datapoints(X_val_orig, 255.)
+
             X_te_1 = X_te_orig.copy()
             y_te_1 = y_te_orig.copy()
             sens_te_1 = sens_te_orig.copy()
@@ -252,9 +255,7 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
             # Apply shift
             if shift != 'orig':
                 (X_tr_orig, y_tr_orig, sens_tr_orig), (X_val_orig, y_val_orig, sens_val_orig), (X_te_orig, y_te_orig, sens_te_orig), orig_dims, nb_classes = load_hosp_dataset(datset, df, target, features, hosp_train, hosp_test, use_group, shuffle=True)
-                # X_tr_orig = normalize_datapoints(X_tr_orig, 255.)
-                # X_te_orig = normalize_datapoints(X_te_orig, 255.)
-                # X_val_orig = normalize_datapoints(X_val_orig, 255.)
+
                 (X_te_1, y_te_1) = apply_shift(X_te_orig, y_te_orig, shift, orig_dims, datset)
 
             X_te_2 , y_te_2, sens_te_2 = random_shuffle(X_te_1, y_te_1, sens_te_1)
@@ -352,69 +353,6 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
                     rand_run_p_vals[si,:,rand_run] = np.append(ind_od_p_vals.flatten(), p_val)
                     rand_run_t_vals[si,:,rand_run] = np.append(ind_od_t_vals.flatten(), -1) # TODO change t_val for Classif dr method
 
-                    # if datset == 'mnist' or datset == 'mnist_usps' or datset == 'mnist_usps':
-                    #     samp_shape = (28,28)
-                    #     cmap = 'gray'
-                    # elif datset == 'cifar10' or datset == 'svhn':
-                    #     samp_shape = (32,32,3)
-                    #     cmap = None
-                    # elif datset == 'eicu':
-                    #     samp_shape = (1,X_tr_orig.shape[1]) # TODO change feature representation
-                    #     cmap = 'gray'
-                    
-                    # if dec:
-                    #     most_conf_test_indices = test_indices[test_perc > 0.8]
-
-                    #     top_same_samples_path = sample_path + 'top_same'
-                    #     if not os.path.exists(top_same_samples_path):
-                    #         os.makedirs(top_same_samples_path)
-
-                    #     rev_top_test_ind = test_indices[::-1][:difference_samples]
-                    #     least_conf_samples = X_te_dcl[rev_top_test_ind]
-                    #     for j in range(len(rev_top_test_ind)):
-                    #         samp = least_conf_samples[j, :]
-                    #         fig = plt.imshow(samp.reshape(samp_shape), cmap=cmap)
-                    #         plt.axis('off')
-                    #         fig.axes.get_xaxis().set_visible(False)
-                    #         fig.axes.get_yaxis().set_visible(False)
-                    #         plt.savefig("%s/%s.pdf" % (top_same_samples_path, j), bbox_inches='tight', pad_inches=0)
-                    #         plt.clf()
-
-                    #         j = j + 1
-
-                    #     top_different_samples_path = sample_path + 'top_diff'
-                    #     if not os.path.exists(top_different_samples_path):
-                    #         os.makedirs(top_different_samples_path)
-
-                    #     most_conf_samples = X_te_dcl[most_conf_test_indices]
-                    #     original_indices = []
-                    #     j = 0
-                    #     for i in range(len(most_conf_samples)):
-                    #         samp = most_conf_samples[i,:]
-                    #         ind = np.where(np.all(X_te_3==samp,axis=1))
-                    #         if len(ind[0]) > 0:
-                    #             # original_indices.append(np.asscalar(ind[0])) # TODO: handle len(ind[0])>1 i.e. cases where >1 indices match X_te_3==samp
-
-                    #             if j < difference_samples:
-                    #                 fig = plt.imshow(samp.reshape(samp_shape), cmap=cmap)
-                    #                 plt.axis('off')
-                    #                 fig.axes.get_xaxis().set_visible(False)
-                    #                 fig.axes.get_yaxis().set_visible(False)
-                    #                 plt.savefig("%s/%s.pdf" % (top_different_samples_path,j), bbox_inches='tight', pad_inches = 0)
-                    #                 plt.clf()
-
-                    #                 j = j + 1
-
-            # for dr_idx, dr in enumerate(dr_techniques_plot):
-            #     plt.semilogx(np.array(samples), rand_run_p_vals[:,dr_idx,rand_run], format[dr], color=colors[dr], label="%s" % DimensionalityReduction(dr).name)
-            # plt.axhline(y=sign_level, color='k')
-            # plt.xlabel('Number of samples from test')
-            # plt.ylabel('$p$-value')
-            # plt.savefig("%s/dr_sample_comp_noleg.pdf" % rand_run_path, bbox_inches='tight')
-            # plt.legend()
-            # plt.savefig("%s/dr_sample_comp.pdf" % rand_run_path, bbox_inches='tight')
-            # plt.clf()
-
             np.savetxt("%s/dr_method_p_vals.csv" % rand_run_path, rand_run_p_vals[:,:,rand_run], delimiter=",")
             np.savetxt("%s/dr_method_t_vals.csv" % rand_run_path, rand_run_t_vals[:,:,rand_run], delimiter=",")
 
@@ -436,23 +374,6 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
         
         mean_feat_p_vals = np.mean(rand_run_feat_p_vals, axis=4)
         std_feat_p_vals = np.std(rand_run_feat_p_vals, axis=4)
-        # for dr_idx, dr in enumerate(dr_techniques_plot):
-        #     errorfill(np.array(samples), mean_p_vals[:,dr_idx], std_p_vals[:,dr_idx], fmt=format[dr], color=colors[dr], label="%s" % DimensionalityReduction(dr).name)
-        # plt.axhline(y=sign_level, color='k')
-        # plt.xlabel('Number of samples from test')
-        # plt.ylabel('$p$-value')
-        # plt.savefig("%s/dr_sample_comp_noleg.pdf" % shift_path, bbox_inches='tight')
-        # plt.legend()
-        # plt.savefig("%s/dr_sample_comp.pdf" % shift_path, bbox_inches='tight')
-        # plt.clf()
-
-        # for dr_idx, dr in enumerate(dr_techniques_plot):
-        #     errorfill(np.array(samples), mean_p_vals[:,dr_idx], std_p_vals[:,dr_idx], fmt=format[dr], color=colors[dr])
-        #     plt.xlabel('Number of samples from test')
-        #     plt.ylabel('$p$-value')
-        #     plt.axhline(y=sign_level, color='k', label='sign_level')
-        #     plt.savefig("%s/%s_conf.pdf" % (shift_path, DimensionalityReduction(dr).name), bbox_inches='tight')
-        #     plt.clf()
 
         np.savetxt("%s/mean_p_vals.csv" % shift_path, mean_p_vals, delimiter=",")
         np.savetxt("%s/std_p_vals.csv" % shift_path, std_p_vals, delimiter=",")
@@ -487,22 +408,6 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
 
         np.save("%s/samples_shifts_rands_feat_p_vals.npy" % (hosp_path), samples_shifts_rands_feat_p_vals)
         np.save("%s/samples_shifts_rands_feat_t_vals.npy" % (hosp_path), samples_shifts_rands_feat_t_vals)
-
-    # for dr_idx, dr in enumerate(dr_techniques_plot):
-    #     dr_method_results = samples_shifts_rands_dr_tech[:,:,:,dr_idx]
-
-    #     mean_p_vals = np.mean(dr_method_results, axis=2)
-    #     std_p_vals = np.std(dr_method_results, axis=2)
-
-        # for idx, shift in enumerate(shifts):
-        #     errorfill(np.array(samples), mean_p_vals[:, idx], std_p_vals[:, idx], fmt=linestyles[idx]+markers[dr], color=colorscale(colors[dr],brightness[idx]), label="%s" % shift.replace('_', '\\_'))
-        # plt.xlabel('Number of samples from test')
-        # plt.ylabel('$p$-value')
-        # plt.axhline(y=sign_level, color='k')
-        # plt.savefig("%s/%s_conf_noleg.pdf" % (hosp_path, DimensionalityReduction(dr).name), bbox_inches='tight')
-        # plt.legend()
-        # plt.savefig("%s/%s_conf.pdf" % (hosp_path, DimensionalityReduction(dr).name), bbox_inches='tight')
-        # plt.clf()
 
     np.save("%s/samples_shifts_rands_dr_tech.npy" % (hosp_path), samples_shifts_rands_dr_tech)
     np.save("%s/samples_shifts_rands_dr_tech_t_val.npy" % (hosp_path), samples_shifts_rands_dr_tech_t_val)

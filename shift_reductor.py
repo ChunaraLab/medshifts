@@ -150,12 +150,14 @@ class ShiftReductor:
                 d['auc'] = np.nan
             else:
                 d['auc'] = metrics.roc_auc_score(y, prob)
+            d['acc'] = np.sum(np.equal(pred, y)) / len(y)
 
             # calculate fairness metrics
             d['eo'] = max_equalized_odds_violation(y, pred, sens)
             d['dp'] = max_demography_parity_violation(y, pred, sens)
 
             return d['auc'], d['smr'], d['eo'], d['dp'] # TODO return other metrics also
+            # return d['acc'], d['smr'], d['eo'], d['dp'] # TODO return other metrics also
 
     def sparse_random_projection(self):
         srp = SparseRandomProjection(n_components=self.dr_amount)

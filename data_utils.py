@@ -77,7 +77,21 @@ FeatureGroups_eicu = {
        'wbc',
        'gcs',
        'age',
-       'electivesurgery']
+       'electivesurgery'],
+    'saps2labs': ['bun',
+        'sodium',
+        'potassium',
+        'bicarbonate',
+        'bilirubin',
+        'wbc'
+    ],
+    'saps2vitals': ['heartrate',
+        'sysbp',
+        'temp',
+        'bg_pao2fio2ratio',
+        'urineoutput',
+        'gcs'
+    ]
 }
 
 # 'demographic': ['age', 'bmi', 'elective_surgery', 'ethnicity', 'gender',
@@ -139,11 +153,15 @@ HospitalIDs_gossis = [118, 19, 188, 161, 70, 196, 176, 21, 194, 174, 100, 55,
 HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_teach_midw.csv',
                         'X_eicu_day1_saps2_n500_teach_s.csv',
                         'X_eicu_day1_saps2_n500_noteach_midw.csv',
-                        'X_eicu_day1_saps2_n500_noteach_s.csv']
+                        'X_eicu_day1_saps2_n500_noteach_s.csv',
+                        'X_eicu_day1_saps2_nl249_noteach_midw.csv',
+                        'X_eicu_day1_saps2_nl249_noteach_s.csv']
 HospitalGroupsColnames_eicu = ['nbed500,teach,midwest',
                         'nbed500,teach,south',
                         'nbed500,noteach,midwest',
-                        'nbed500,noteach,south']
+                        'nbed500,noteach,south',
+                        'nbedl250,noteach,midwest',
+                        'nbedl250,noteach,south']
 
 def __unison_shuffled_copies(a, b, c):
     assert len(a) == len(b)
