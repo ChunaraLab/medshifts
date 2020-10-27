@@ -3,7 +3,7 @@ Written by Stephan Rabanser https://github.com/steverab/failing-loudly
 Modifed
 
 Usage:
-python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 5 --random_runs 10 --min_samples 1500 --group
+python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 5 --random_runs 10 --min_samples 1500 --sens_attr gender --group
 
 Plot test results across hospitals
 '''
@@ -40,6 +40,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--datset", type=str, default='eicu')
 parser.add_argument("--path", type=str, default='orig')
 parser.add_argument("--test_type", type=str, default='multiv')
+parser.add_argument("--sens_attr", type=str, default='gender') # gender, race
 parser.add_argument("--num_hosp", type=int, default=5)
 parser.add_argument("--random_runs", type=int, default=10)
 parser.add_argument("--min_samples", type=int, default=1500)
@@ -49,10 +50,11 @@ args = parser.parse_args()
 datset = args.datset # sys.argv[1]
 test_type = args.test_type # sys.argv[3]
 use_group = args.group
+sens_attr = args.sens_attr
 
 # path = './hosp_results_gossis_multiv/'
 path = './hosp_results_{}_{}/'.format(datset, test_type)
-path += '{}_group{}_nh{}_run{}_mins{}_{}/'.format(datset, use_group, args.num_hosp, args.random_runs, args.min_samples, args.path)
+path += '{}_group{}_nh{}_run{}_mins{}_s{}_{}/'.format(datset, use_group, args.num_hosp, args.random_runs, args.min_samples, sens_attr, args.path)
 
 if not os.path.exists(path):
     os.makedirs(path)
@@ -98,7 +100,7 @@ for hi in range(len(HospitalIDs)):
     for hj in range(len(HospitalIDs)):
         hosp_pairs.append((hi,hj,[HospitalIDs[hi]],[HospitalIDs[hj]]))
 # hosp_pairs = [([394],[416])]
-print('Use groups', use_group, 'Hospital pairs', hosp_pairs)
+print('Use groups', use_group, 'Sensitive attribute', sens_attr, 'Hospital pairs', hosp_pairs)
 
 # Define DR methods
 # dr_techniques = [DimensionalityReduction.NoRed.value, DimensionalityReduction.PCA.value, DimensionalityReduction.SRP.value, DimensionalityReduction.UAE.value, DimensionalityReduction.TAE.value, DimensionalityReduction.BBSDs.value, DimensionalityReduction.BBSDh.value]
@@ -345,7 +347,7 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                 hosp_pair_tval_triu = np.triu(np.ones_like(hosp_pair_tval, dtype=np.bool))
                 np.fill_diagonal(hosp_pair_tval_triu, False)
                 hosp_pair_tval = pd.DataFrame(hosp_pair_tval, columns=HospitalIDsColnames, index=HospitalIDsColnames)
-                hosp_pair_tval.to_csv("%s/%s_%s_%s_t_val_df.csv" % (feats_path, DimensionalityReduction(dr).name, shift, sample), index=True)
+                hosp_pair_tval.to_csv("%s/%s_%s_%s_%s_t_val_df.csv" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), index=True)
                 # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                 # fig = sns.heatmap(hosp_pair_tval, linewidths=0.5, cmap=cmap)
                 fig = sns.heatmap(hosp_pair_tval, mask=hosp_pair_tval_triu, linewidths=0.5, cmap=cmap)

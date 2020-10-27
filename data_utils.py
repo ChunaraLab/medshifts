@@ -150,18 +150,32 @@ HospitalIDs_eicu = [73, 264, 338, 443, 458, 420, 252, 300, 122, 243, 188, 449, 2
 HospitalIDs_gossis = [118, 19, 188, 161, 70, 196, 176, 21, 194, 174, 100, 55,
                     185, 79, 18, 157, 62, 39, 112, 76]
 
-HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_teach_midw.csv',
-                        'X_eicu_day1_saps2_n500_teach_s.csv',
-                        'X_eicu_day1_saps2_n500_noteach_midw.csv',
-                        'X_eicu_day1_saps2_n500_noteach_s.csv',
-                        'X_eicu_day1_saps2_nl249_noteach_midw.csv',
-                        'X_eicu_day1_saps2_nl249_noteach_s.csv']
-HospitalGroupsColnames_eicu = ['nbed500,teach,midwest',
-                        'nbed500,teach,south',
-                        'nbed500,noteach,midwest',
-                        'nbed500,noteach,south',
-                        'nbedl250,noteach,midwest',
-                        'nbedl250,noteach,south']
+# HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_teach_midw.csv',
+#                         'X_eicu_day1_saps2_n500_teach_s.csv',
+#                         'X_eicu_day1_saps2_n500_noteach_midw.csv',
+#                         'X_eicu_day1_saps2_n500_noteach_s.csv',
+#                         'X_eicu_day1_saps2_nl249_noteach_midw.csv',
+#                         'X_eicu_day1_saps2_nl249_noteach_s.csv']
+# HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_all.csv',
+#                        'X_eicu_day1_saps2_nl499_all.csv']
+HospitalGroups_eicu = ['X_eicu_day1_saps2_nl499_s.csv',
+                        'X_eicu_day1_saps2_nl499_midw.csv',
+                        'X_eicu_day1_saps2_nl499_w.csv',
+                        # 'X_eicu_day1_saps2_nl499_ne.csv',
+                        'X_eicu_day1_saps2_n500_s.csv',
+                        # 'X_eicu_day1_saps2_n500_w.csv',
+                        # 'X_eicu_day1_saps2_n500_ne.csv',
+                        'X_eicu_day1_saps2_n500_midw.csv']
+# HospitalGroupsColnames_eicu = ['nbed500,teach,midwest',
+#                         'nbed500,teach,south',
+#                         'nbed500,noteach,midwest',
+#                         'nbed500,noteach,south',
+#                         'nbedl250,noteach,midwest',
+#                         'nbedl250,noteach,south']
+# HospitalGroupsColnames_eicu = ['nbedmore500',
+#                                'nbedless500']
+HospitalGroupsColnames_eicu = ['nbedless500,south', 'nbedless500,midwest', 'nbedless500,west',
+                                'nbedmore500,south', 'nbedmore500,midwest',]
 
 def __unison_shuffled_copies(a, b, c):
     assert len(a) == len(b)
@@ -206,7 +220,7 @@ def import_hosp_dataset(dataset):
         df = pd.read_csv(external_dataset_path + 'X_eicu_day1.csv.gz', sep=',', index_col=0)
     return df
 
-def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_group, shuffle=False):
+def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_group, sens_attr, shuffle=False):
     '''
     :param hosp_train, hosp_test: hospital IDs to include in train and test set
     :param min_trans: minimum transactions per hospital for inclusion
@@ -219,13 +233,20 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_
         index_col = 0
         hospitalid_var = 'hospitalid'
         var_other = ['hospitalid', 'death', 'hosp_los', 'ventdays']
-        sensitive_feature = 'is_female'
+        if sens_attr=='gender':
+            sensitive_feature = 'is_female'
+            print("dsfdsfaf", sens_attr, sensitive_feature)
+        else:
+            sensitive_feature = 'race_other'
     elif dataset == 'gossis':
         data_filename = 'training_v2_top15hosp_dummy_gossis.csv'
         index_col = None
         hospitalid_var = 'hospital_id'
         var_other = ['hospital_id', 'hospital_death', 'encounter_id', 'patient_id']
-        sensitive_feature = 'gender_F'
+        if sens_attr=='gender':
+            sensitive_feature = 'gender_F'
+        else:
+            sensitive_feature = 'ethnicity_Caucasian'
 
     # df_eicu = df.copy()
     '''
@@ -316,6 +337,9 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_
     sens_val = sens_val.reshape(len(sens_val))
     sens_test = sens_test.reshape(len(sens_test))
     # print('hosp_train, hosp_test, orig_dims, new_dims train, val, test x, y', hosp_train, hosp_test, orig_dims, x_train.shape, y_train.shape, x_val.shape, y_val.shape, x_test.shape, y_test.shape)
+    print('Train {}, examples {}, features {}, label {}, sens {}'.format(hosp_train, x_train.shape[0], x_train.shape[1], y_train.sum()/len(y_train), sens_train.sum()/len(sens_train)))
+    print('Val {}, examples {}, features {}, label {}, sens {}'.format(hosp_train, x_val.shape[0], x_val.shape[1], y_val.sum()/len(y_val), sens_val.sum()/len(sens_val)))
+    print('Test {}, examples {}, features {}, label {}, sens {}'.format(hosp_test, x_test.shape[0], x_test.shape[1], y_test.sum()/len(y_test), sens_test.sum()/len(sens_test)))
 
     return (x_train, y_train, sens_train), (x_val, y_val, sens_val), (x_test, y_test, sens_test), orig_dims, nb_classes
 

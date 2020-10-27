@@ -153,7 +153,12 @@ class ShiftReductor:
             d['acc'] = np.sum(np.equal(pred, y)) / len(y)
 
             # calculate fairness metrics
-            d['eo'] = max_equalized_odds_violation(y, pred, sens)
+            try:
+                d['eo'] = max_equalized_odds_violation(y, pred, sens)
+            except ValueError as err:
+                print("*********Error in max_equalized_odds_violation*******")
+                print(err)
+                d['eo'] = 0
             d['dp'] = max_demography_parity_violation(y, pred, sens)
 
             return d['auc'], d['smr'], d['eo'], d['dp'] # TODO return other metrics also
