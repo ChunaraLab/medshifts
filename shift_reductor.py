@@ -12,7 +12,6 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler
 from sklearn import metrics
 import joblib
-from fairlearn.metrics import group_recall_score, group_specificity_score, group_accuracy_score, group_mean_prediction
 
 from keras.layers import Input, Dense, Dropout, Activation, Conv2D, MaxPooling2D, UpSampling2D
 from keras.models import Model, Sequential
@@ -23,6 +22,7 @@ from keras.callbacks import ReduceLROnPlateau, CSVLogger, EarlyStopping
 from keras import optimizers
 
 from shared_utils import *
+from exp_utils import *
 import os
 
 import keras_resnet.models
@@ -31,33 +31,6 @@ import keras
 # -------------------------------------------------
 # SHIFT REDUCTOR
 # -------------------------------------------------
-
-
-def max_equalized_odds_violation(target, predictions, sensitive_feature):
-    '''
-    Maximum violation of equalized odds constraint. From fair reductions paper,
-    max_{y,a} |E[h(X)|Y=y,A=a]-E[h(X)|Y=y]|
-    :param sensitive_feature: actual value of the sensitive feature
-    '''
-    tpr = group_recall_score(target, predictions, sensitive_feature)
-    specificity = group_specificity_score(target, predictions, sensitive_feature) # 1-fpr
-    
-    max_violation = max([abs(tpr_group-tpr.overall) for tpr_group in tpr.by_group.values()] +
-        [abs(spec_group-specificity.overall) for spec_group in specificity.by_group.values()])
-    
-    return max_violation
-
-def max_demography_parity_violation(target, predictions, sensitive_feature):
-    '''
-    Maximum violation of demographic parity constraint.
-    max_{a} |E[h(X)|A=a]-min_{a} |E[h(X)|A=a]
-    :param sensitive_feature: actual value of the sensitive feature
-    '''
-    acc = group_mean_prediction(target, predictions, sensitive_feature)
-    acc_ad = [i for i in acc.by_group.values()]
-    max_violation = abs(acc_ad[0]-acc_ad[1])
-    
-    return max_violation
 
 class ShiftReductor:
 
@@ -137,15 +110,29 @@ class ShiftReductor:
             prob = model.predict_proba(X)[:,1]
             pred = model.predict(X)
             d = dict()
-    
+            
+            # calibration
             # calculate SMR
             d['count'] = y.shape[0] # TODO count non-NA elements only
             d['outcome'] = y.sum()
-            
             d['smr'] = y.sum() / prob.sum()
-            d['mse'] = metrics.mean_squared_error(y, prob)
+            
+            d['ece'] = expected_calibration_error(y, prob)
+            d['citl'] = calibration_in_the_large(y, prob)
+            try:
+                d['cs'] = calibration_slope(y, prob)
+            except ValueError as err:
+                print("*********Error in calibration_slope*******")
+                print(err)
+                d['cs'] = np.nan
+
+            # overall
+            # d['mse'] = metrics.mean_squared_error(y, prob)
+            d['brier'] = get_brier_score(y, prob)
             d['mae'] = metrics.mean_absolute_error(y, prob)
             d['logloss'] = metrics.log_loss(y, prob)
+
+            # discrimination
             if len(np.unique(y))<=1:
                 d['auc'] = np.nan
             else:
@@ -154,15 +141,23 @@ class ShiftReductor:
 
             # calculate fairness metrics
             try:
-                d['eo'] = max_equalized_odds_violation(y, pred, sens)
+                d['eo'] = get_equalized_odds_difference(y, pred, sens)
             except ValueError as err:
                 print("*********Error in max_equalized_odds_violation*******")
                 print(err)
-                d['eo'] = 0
-            d['dp'] = max_demography_parity_violation(y, pred, sens)
-
-            return d['auc'], d['smr'], d['eo'], d['dp'] # TODO return other metrics also
-            # return d['acc'], d['smr'], d['eo'], d['dp'] # TODO return other metrics also
+                d['eo'] = np.nan
+            d['dp'] = get_demography_parity_difference(y, pred, sens)
+            d['fnr'] = get_false_negative_rate_difference(y, pred, sens)
+            d['citl_diff'] = get_calibration_in_the_large_difference(y, prob, sens)
+            try:
+                d['cs_diff'] = get_calibration_slope_difference(y, prob, sens)
+            except ValueError as err:
+                print("*********Error in get_calibration_slope_difference*******")
+                print(err)
+                d['cs_diff'] = np.nan
+            
+            # print('metrics', d)
+            return d
 
     def sparse_random_projection(self):
         srp = SparseRandomProjection(n_components=self.dr_amount)

@@ -6,19 +6,23 @@ Detect shifts across hospitals
 
 Usage
 for multivaritate tests:
-python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 5 --random_runs 10 --min_samples 5000 --sens_attr gender --group
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 5 --random_runs 10 --min_samples 5000 --sens_attr race --group
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 10 --random_runs 10 --min_samples 2000 --sens_attr race
+
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 6 --random_runs 10 --min_samples 4000 --sens_attr race --group
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 2 --random_runs 10 --min_samples 10000 --sens_attr race --group
 
 for univaritate tests:
 python hosp_pipeline_parallel.py eicu orig univ mean
 
 # TODO
+check test significance level adjust_sign_level = sign_level / len(hosp_pairs) in generate_hosp_plot
+quantify shift by discriminate between train test
+correlation between fairness, AUC and SMR
 auc with all features with PCA
 mmd with label and features
 check try catch for error in max_equalized_odds_violation when y_true and y_pred has only one value. error in cm.ravel()
-save accuracy, 0-1 loss
-check test significance level
 check apache variables for eicu
-quantify shift by discriminate between train test
 sample size vs acc, smr Johnson plot with all train in X_tr_3, y_tr_3
 frequency univariate
 colorcode scatterplot by hospital meta data
@@ -30,7 +34,6 @@ acc for dimension reduction also in shift_detector
 apache 4 feature group in apacheapsvar, apachepredvar SQL tables
 
 get HospitalIDs and FeatureGroups from function in data_utils
-record train set accuracy
 use validation set for accuracy in shift_detector
 DimensionalityReduction.NoRed in shift_reductor used to calculate accuracy. calculate in separate class. reduce return prob instead of pred
 impute missing values in shift_reductor pca, srp, lda
@@ -44,13 +47,12 @@ move filename in data_utils to main file
 '''
 
 import argparse
+import pickle
 import numpy as np
-import tensorflow
 from itertools import combinations
 import time
 seed = 1
 np.random.seed(seed)
-tensorflow.random.set_seed(seed)
 
 from shift_detector import *
 from shift_locator import *
@@ -83,6 +85,10 @@ parser.add_argument("--random_runs", type=int, default=10)
 parser.add_argument("--min_samples", type=int, default=5000)
 parser.add_argument("--group", action='store_true')
 args = parser.parse_args()
+# args = parser.parse_args("--datset eicu --path orig --test_type multiv\
+#                         --missing_imp mean --num_hosp 2 --random_runs 1\
+#                         --min_samples 1000 --sens_attr gender --group".split())
+print("Arguments", args)
 
 datset = args.datset
 test_type = args.test_type
@@ -93,6 +99,7 @@ sens_attr = args.sens_attr
 # path = './hosp_results_gossis_multiv/'
 path = './hosp_results_{}_{}/'.format(datset, test_type)
 path += '{}_group{}_nh{}_run{}_mins{}_s{}_{}/'.format(datset, use_group, args.num_hosp, args.random_runs, args.min_samples, sens_attr, args.path)
+print("path", path)
 
 if not os.path.exists(path):
     os.makedirs(path)
@@ -205,10 +212,11 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
     if not os.path.exists(hosp_path):
         os.makedirs(hosp_path)
 
+    metric_results = MetricResults(len(shifts), len(samples), random_runs)
+
     samples_shifts_rands_dr_tech = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot))) * (-1) # TODO add hosp_pair
     samples_shifts_rands_dr_tech_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot))) * (-1) # TODO add hosp_pair
-    samples_shifts_rands_te_acc = np.ones((len(samples), len(shifts), random_runs, 4)) * (-1) # 0-auc, 1-smr, 2-eo, 3-dp # TODO add auc, smr, p-val, mmd in same array. add hosp_pair
-
+    
     samples_shifts_rands_feat_p_vals = np.ones((len(samples), len(shifts), len(dr_techniques_plot), len(od_tests), len(features), random_runs)) * (-1)
     samples_shifts_rands_feat_t_vals = np.ones((len(samples), len(shifts), len(dr_techniques_plot), len(od_tests), len(features), random_runs)) * (-1)
 
@@ -220,20 +228,6 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
 
         rand_run_p_vals = np.ones((len(samples), len(dr_techniques_plot), random_runs)) * (-1)
         rand_run_t_vals = np.ones((len(samples), len(dr_techniques_plot), random_runs)) * (-1)
-
-        # Stores accuracy values for malignancy detection.
-        rand_run_tr_auc = np.ones((len(samples), random_runs)) * (-1)
-        rand_run_te_auc = np.ones((len(samples), random_runs)) * (-1)
-        rand_run_tr_smr = np.ones((len(samples), random_runs)) * (-1)
-        rand_run_te_smr = np.ones((len(samples), random_runs)) * (-1)
-
-
-        rand_run_tr_eo = np.ones((len(samples), random_runs)) * (-1)
-        rand_run_tr_dp = np.ones((len(samples), random_runs)) * (-1)
-        rand_run_val_eo = np.ones((len(samples), random_runs)) * (-1)
-        rand_run_val_dp = np.ones((len(samples), random_runs)) * (-1)
-        rand_run_te_eo = np.ones((len(samples), random_runs)) * (-1)
-        rand_run_te_dp = np.ones((len(samples), random_runs)) * (-1)
 
         rand_run_feat_p_vals = np.ones((len(samples), len(dr_techniques_plot), len(od_tests), len(features), random_runs)) * (-1)
         rand_run_feat_t_vals = np.ones((len(samples), len(dr_techniques_plot), len(od_tests), len(features), random_runs)) * (-1)
@@ -247,7 +241,6 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
                 os.makedirs(rand_run_path)
 
             np.random.seed(rand_run)
-            tensorflow.random.set_seed(rand_run)
 
             # Load data
             time_now = time.time()
@@ -315,23 +308,13 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
                 shift_detector = ShiftDetector(dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset)
                 (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals),\
                 (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals),\
-                red_dim, red_models, tr_auc, te_val_auc_diff, tr_smr, te_val_smr_diff,\
-                tr_eo, tr_dp, val_eo, val_dp, te_eo, te_dp\
+                red_dim, red_models, d_tr, d_te, d_val\
                  = shift_detector.detect_data_shift(X_tr_3, y_tr_3, sens_tr_3, X_val_3, y_val_3, sens_val_3, X_te_3, y_te_3, sens_te_3, orig_dims, nb_classes)
 
                 time_diff = time.time() - time_now
                 print('Time: {}s taken in detecting shift\n{}, {}, {}'.format(time_diff, rand_run, hosp_train, hosp_test))
 
-                rand_run_tr_auc[si, rand_run] = tr_auc
-                rand_run_te_auc[si, rand_run] = te_val_auc_diff
-                rand_run_tr_smr[si, rand_run] = tr_smr
-                rand_run_te_smr[si, rand_run] = te_val_smr_diff
-                rand_run_tr_eo[si, rand_run] = tr_eo
-                rand_run_tr_dp[si, rand_run] = tr_dp
-                rand_run_val_eo[si, rand_run] = val_eo
-                rand_run_val_dp[si, rand_run] = val_dp
-                rand_run_te_eo[si, rand_run] = te_eo
-                rand_run_te_dp[si, rand_run] = te_dp
+                metric_results.add(d_tr, d_te, d_val, shift_idx, si, rand_run)
 
                 if test_type == 'multiv':
                     # print("Shift decision: ", ind_md_decs.flatten())
@@ -365,36 +348,6 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
             np.save("%s/dr_method_feat_p_vals.npy" % rand_run_path, rand_run_feat_p_vals[:,:,:,:,rand_run])
             np.save("%s/dr_method_feat_t_vals.npy" % rand_run_path, rand_run_feat_t_vals[:,:,:,:,rand_run])
 
-
-        mean_p_vals = np.mean(rand_run_p_vals, axis=2)
-        std_p_vals = np.std(rand_run_p_vals, axis=2)
-        
-        mean_te_auc = np.mean(rand_run_te_auc, axis=1)
-        std_te_auc = np.std(rand_run_te_auc, axis=1)
-        mean_te_smr = np.mean(rand_run_te_smr, axis=1)
-        std_te_smr = np.std(rand_run_te_smr, axis=1)
-        mean_te_eo = np.mean(rand_run_te_eo, axis=1)
-        std_te_eo = np.std(rand_run_te_eo, axis=1)
-        mean_te_dp = np.mean(rand_run_te_dp, axis=1)
-        std_te_dp = np.std(rand_run_te_dp, axis=1)
-        
-        mean_feat_p_vals = np.mean(rand_run_feat_p_vals, axis=4)
-        std_feat_p_vals = np.std(rand_run_feat_p_vals, axis=4)
-
-        np.savetxt("%s/mean_p_vals.csv" % shift_path, mean_p_vals, delimiter=",")
-        np.savetxt("%s/std_p_vals.csv" % shift_path, std_p_vals, delimiter=",")
-        np.savetxt("%s/mean_te_auc.csv" % shift_path, mean_te_auc, delimiter=",")
-        np.savetxt("%s/std_te_auc.csv" % shift_path, std_te_auc, delimiter=",")
-        np.savetxt("%s/mean_te_smr.csv" % shift_path, mean_te_smr, delimiter=",")
-        np.savetxt("%s/std_te_smr.csv" % shift_path, std_te_smr, delimiter=",")
-        np.savetxt("%s/mean_te_eo.csv" % shift_path, mean_te_eo, delimiter=",")
-        np.savetxt("%s/std_te_eo.csv" % shift_path, std_te_eo, delimiter=",")
-        np.savetxt("%s/mean_te_dp.csv" % shift_path, mean_te_dp, delimiter=",")
-        np.savetxt("%s/std_te_dp.csv" % shift_path, std_te_dp, delimiter=",")
-
-        np.save("%s/mean_feat_p_vals.npy" % shift_path, mean_feat_p_vals)
-        np.save("%s/std_feat_p_vals.npy" % shift_path, std_feat_p_vals)
-
         for dr_idx, dr in enumerate(dr_techniques_plot):
             samples_shifts_rands_dr_tech[:,shift_idx,:,dr_idx] = rand_run_p_vals[:,dr_idx,:]
             samples_shifts_rands_dr_tech_t_val[:,shift_idx,:,dr_idx] = rand_run_t_vals[:,dr_idx,:]
@@ -405,19 +358,17 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
         np.save("%s/samples_shifts_rands_dr_tech.npy" % (hosp_path), samples_shifts_rands_dr_tech)
         np.save("%s/samples_shifts_rands_dr_tech_t_val.npy" % (hosp_path), samples_shifts_rands_dr_tech_t_val)
 
-        samples_shifts_rands_te_acc[:,shift_idx,:,0] = rand_run_te_auc
-        samples_shifts_rands_te_acc[:,shift_idx,:,1] = rand_run_te_smr
-        samples_shifts_rands_te_acc[:,shift_idx,:,2] = rand_run_te_eo
-        samples_shifts_rands_te_acc[:,shift_idx,:,3] = rand_run_te_dp
-
-        np.save("%s/samples_shifts_rands_te_acc.npy" % (hosp_path), samples_shifts_rands_te_acc)
+        with open("%s/samples_shifts_rands_metrics.pkl" % (hosp_path), 'wb') as fw:
+            pickle.dump(metric_results, fw)
 
         np.save("%s/samples_shifts_rands_feat_p_vals.npy" % (hosp_path), samples_shifts_rands_feat_p_vals)
         np.save("%s/samples_shifts_rands_feat_t_vals.npy" % (hosp_path), samples_shifts_rands_feat_t_vals)
 
     np.save("%s/samples_shifts_rands_dr_tech.npy" % (hosp_path), samples_shifts_rands_dr_tech)
     np.save("%s/samples_shifts_rands_dr_tech_t_val.npy" % (hosp_path), samples_shifts_rands_dr_tech_t_val)
-    np.save("%s/samples_shifts_rands_te_acc.npy" % (hosp_path), samples_shifts_rands_te_acc)
+    
+    with open("%s/samples_shifts_rands_metrics.pkl" % (hosp_path), 'wb') as fw:
+        pickle.dump(metric_results, fw)
 
     np.save("%s/samples_shifts_rands_feat_p_vals.npy" % (hosp_path), samples_shifts_rands_feat_p_vals)
     np.save("%s/samples_shifts_rands_feat_t_vals.npy" % (hosp_path), samples_shifts_rands_feat_t_vals)

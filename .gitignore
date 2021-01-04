@@ -17,3 +17,5 @@ hosp_results_parallel
 saved_models
 datasets
 hosp_results_gossis
+hosp_results_eicu
+hosp_results_eicu_multiv

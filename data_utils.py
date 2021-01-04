@@ -166,6 +166,7 @@ HospitalGroups_eicu = ['X_eicu_day1_saps2_nl499_s.csv',
                         # 'X_eicu_day1_saps2_n500_w.csv',
                         # 'X_eicu_day1_saps2_n500_ne.csv',
                         'X_eicu_day1_saps2_n500_midw.csv']
+
 # HospitalGroupsColnames_eicu = ['nbed500,teach,midwest',
 #                         'nbed500,teach,south',
 #                         'nbed500,noteach,midwest',
@@ -235,7 +236,7 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_
         var_other = ['hospitalid', 'death', 'hosp_los', 'ventdays']
         if sens_attr=='gender':
             sensitive_feature = 'is_female'
-            print("dsfdsfaf", sens_attr, sensitive_feature)
+            # print("dsfdsfaf", sens_attr, sensitive_feature)
         else:
             sensitive_feature = 'race_other'
     elif dataset == 'gossis':
