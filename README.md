@@ -12,7 +12,9 @@ We build on the scripts for two-sample testing and model training-testing by Ste
 
 ## Run instructions
 
-Following scripts run on parallel across processes. Adjust `num_cores=1` in hosp_pipeline_parallel.py to disable parallelization.
+Main file is `hosp_pipeline_parallel.py`.
+
+Following commands are run on parallel across processes. Adjust `num_cores=1` in `hosp_pipeline_parallel.py` to disable parallelization.
 
 To run all experiments:
 
