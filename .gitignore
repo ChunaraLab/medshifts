@@ -12,6 +12,7 @@ __pycache__
 # Project
 adv_samples
 
+# Results folders
 hosp_results
 hosp_results_parallel
 saved_models
@@ -19,3 +20,10 @@ datasets
 hosp_results_gossis
 hosp_results_eicu
 hosp_results_eicu_multiv
+
+# Record-keeping, test files
+changes.txt
+example.ipynb
+explore_gossis.ipynb
+missing_mmd.py
+profile_hosp_pipeline.py

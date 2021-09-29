@@ -1,20 +1,7 @@
 '''
-Written by Stephan Rabanser https://github.com/steverab/failing-loudly
-Modifed
+Modifed from code by Stephan Rabanser https://github.com/steverab/failing-loudly
 
-Detect shifts across hospitals
-
-# TODO
-columns with all missing values, remove columns in both train and test?
-impute missing values in shift_reductor pca, srp, lda
-number of dims in shift_detector
-use validation set
-load data once
-mean_p_vals = -1 for 73, 338
-shift_tester.test_shift one dim check if t_val correct after FWER correction
-shift_tester.test_chi2_shift one dim return t_val
-
-parallel, mice, t_val, acc BBSDh, univ
+Detect shifts, train and test models across hospitals and regions
 '''
 
 import numpy as np

@@ -11,13 +11,14 @@ from shared_utils import *
 # -------------------------------------------------
 
 DR_DIMS = 32
+LIMIT_SAMPLES_NUM = 5000
 
 class ShiftDetector:
 
     # Model storage for quick access.
     red_models = [None] * len(DimensionalityReduction)
 
-    def __init__(self, dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset):
+    def __init__(self, dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset, limit_samples):
         self.dr_techniques = dr_techniques
         self.test_types = test_types
         self.od_tests = od_tests
@@ -26,6 +27,7 @@ class ShiftDetector:
         self.red_models = red_models
         self.sample = sample
         self.datset = datset
+        self.limit_samples = limit_samples
 
     def detect_data_shift(self, X_tr, y_tr, sens_tr, X_val, y_val, sens_val, X_te, y_te, sens_te, orig_dims, nb_classes):
         od_decs = np.ones(len(self.dr_techniques)) * (-1)
@@ -90,6 +92,10 @@ class ShiftDetector:
 
             md_loc_p_vals = []
             md_loc_t_vals = []
+
+            if self.limit_samples:
+                X_tr_red = X_tr_red[:LIMIT_SAMPLES_NUM,:]
+                X_te_red = X_te_red[:LIMIT_SAMPLES_NUM,:]
 
             # Iterate over all test types and use appropriate test for the DR technique used.
             for test_type in self.test_types:

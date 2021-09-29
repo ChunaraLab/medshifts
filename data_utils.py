@@ -150,33 +150,70 @@ HospitalIDs_eicu = [73, 264, 338, 443, 458, 420, 252, 300, 122, 243, 188, 449, 2
 HospitalIDs_gossis = [118, 19, 188, 161, 70, 196, 176, 21, 194, 174, 100, 55,
                     185, 79, 18, 157, 62, 39, 112, 76]
 
-# HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_teach_midw.csv',
-#                         'X_eicu_day1_saps2_n500_teach_s.csv',
-#                         'X_eicu_day1_saps2_n500_noteach_midw.csv',
-#                         'X_eicu_day1_saps2_n500_noteach_s.csv',
-#                         'X_eicu_day1_saps2_nl249_noteach_midw.csv',
-#                         'X_eicu_day1_saps2_nl249_noteach_s.csv']
-# HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_all.csv',
-#                        'X_eicu_day1_saps2_nl499_all.csv']
-HospitalGroups_eicu = ['X_eicu_day1_saps2_nl499_s.csv',
-                        'X_eicu_day1_saps2_nl499_midw.csv',
-                        'X_eicu_day1_saps2_nl499_w.csv',
-                        # 'X_eicu_day1_saps2_nl499_ne.csv',
-                        'X_eicu_day1_saps2_n500_s.csv',
-                        # 'X_eicu_day1_saps2_n500_w.csv',
-                        # 'X_eicu_day1_saps2_n500_ne.csv',
-                        'X_eicu_day1_saps2_n500_midw.csv']
+group_type = 'regions'
+# group_type = 'beds'
+# group_type = 'regions_beds'
+# group_type = 'regions_beds_teaching'
 
-# HospitalGroupsColnames_eicu = ['nbed500,teach,midwest',
-#                         'nbed500,teach,south',
-#                         'nbed500,noteach,midwest',
-#                         'nbed500,noteach,south',
-#                         'nbedl250,noteach,midwest',
-#                         'nbedl250,noteach,south']
-# HospitalGroupsColnames_eicu = ['nbedmore500',
-#                                'nbedless500']
-HospitalGroupsColnames_eicu = ['nbedless500,south', 'nbedless500,midwest', 'nbedless500,west',
-                                'nbedmore500,south', 'nbedmore500,midwest',]
+def get_groups_colnames(group_type):
+    HospitalGroups_eicu = []
+    HospitalGroupsColnames_eicu = []
+
+    if group_type == 'regions':
+        HospitalGroups_eicu = ['X_eicu_day1_saps2_s.csv',
+                            'X_eicu_day1_saps2_midw.csv',
+                            'X_eicu_day1_saps2_w.csv',
+                            'X_eicu_day1_saps2_ne.csv']
+        HospitalGroupsColnames_eicu = ['south', 'midwest', 'west', 'northeast']
+    elif group_type == 'beds':
+        HospitalGroups_eicu = ['X_eicu_day1_saps2_nl100.csv',
+                        'X_eicu_day1_saps2_n100_249.csv',
+                        'X_eicu_day1_saps2_n250_499.csv',
+                        'X_eicu_day1_saps2_n500.csv']
+        HospitalGroupsColnames_eicu = ['nbedless100',
+                                'nbed100and249',
+                                'nbed250and499',
+                                'nbedmore500']
+    elif group_type == 'regions_beds':
+        HospitalGroups_eicu = ['X_eicu_day1_saps2_nl499_s.csv',
+                            'X_eicu_day1_saps2_nl499_midw.csv',
+                            'X_eicu_day1_saps2_nl499_w.csv',
+                            # 'X_eicu_day1_saps2_nl499_ne.csv',
+                            'X_eicu_day1_saps2_n500_s.csv',
+                            # 'X_eicu_day1_saps2_n500_w.csv',
+                            # 'X_eicu_day1_saps2_n500_ne.csv',
+                            'X_eicu_day1_saps2_n500_midw.csv']
+        HospitalGroupsColnames_eicu = ['nbedless500,south', 'nbedless500,midwest', 'nbedless500,west',
+                                    'nbedmore500,south', 'nbedmore500,midwest']
+    elif group_type == 'regions_beds_teaching':
+        HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_teach_midw.csv',
+                            'X_eicu_day1_saps2_n500_teach_s.csv',
+                            # 'X_eicu_day1_saps2_n500_noteach_midw.csv',
+                            'X_eicu_day1_saps2_n500_noteach_s.csv',
+                            # 'X_eicu_day1_saps2_nl249_noteach_midw.csv',
+                            # 'X_eicu_day1_saps2_nl249_noteach_s.csv',
+                            'X_eicu_day1_saps2_nl499_noteach_midw.csv',
+                            # 'X_eicu_day1_saps2_nl499_noteach_ne.csv',
+                            'X_eicu_day1_saps2_nl499_noteach_w.csv',
+                            'X_eicu_day1_saps2_nl499_noteach_s.csv']
+        HospitalGroupsColnames_eicu = ['nbed500,teach,midwest',
+                            'nbed500,teach,south',
+                            # 'nbed500,noteach,midwest',
+                            'nbed500,noteach,south',
+                            # 'nbedl250,noteach,midwest',
+                            # 'nbedl250,noteach,south',
+                            'nbedl499,noteach,midwest',
+                            # 'nbedl499,noteach,northeast',
+                            'nbedl499,noteach,west',
+                            'nbedl499,noteach,south']
+    else:
+        print("******Type of grouping does not match or groups flag is False******")
+    # HospitalGroups_eicu = ['X_eicu_day1_saps2_n500_all.csv',
+    #                        'X_eicu_day1_saps2_nl499_all.csv']
+    # HospitalGroupsColnames_eicu = ['nbedmore500',
+    #                                'nbedless500']
+
+    return HospitalGroups_eicu, HospitalGroupsColnames_eicu
 
 def __unison_shuffled_copies(a, b, c):
     assert len(a) == len(b)
@@ -227,10 +264,10 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_
     :param min_trans: minimum transactions per hospital for inclusion
     '''
     x_train, y_train, x_test, y_test = None, None, None, None
-    external_dataset_path = './datasets/'
+    external_dataset_path = './datasets/graphdata/'
     nb_classes = 2
     if dataset == 'eicu':
-        data_filename = 'X_eicu_day1_saps2.csv'
+        data_filename = 'X_eicu_day1_saps2_merged.csv'
         index_col = 0
         hospitalid_var = 'hospitalid'
         var_other = ['hospitalid', 'death', 'hosp_los', 'ventdays']
@@ -239,6 +276,9 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_
             # print("dsfdsfaf", sens_attr, sensitive_feature)
         else:
             sensitive_feature = 'race_other'
+            # pat.ethnicity not in 'African American', 'Hispanic', 'Asian' -> race_other
+            # https://github.com/alistairewj/icu-model-transfer/blob/master/datasets/eicu/static-data.sql
+            # Ethnicity - Asian, Caucasian, African American, Native American, Hispanic, Other/Unknown
     elif dataset == 'gossis':
         data_filename = 'training_v2_top15hosp_dummy_gossis.csv'
         index_col = None
@@ -270,6 +310,10 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_
         #     len(hosp_to_keep), df_eicu[hospitalid_var].nunique()))
         df_eicu_train = df_eicu.loc[df_eicu[hospitalid_var].isin(np.array(hosp_train)), :]
         df_eicu_test = df_eicu.loc[df_eicu[hospitalid_var].isin(np.array(hosp_test)), :]
+
+    # Shuffle rows
+    df_eicu_train = df_eicu_train.sample(frac=1).reset_index(drop=True)
+    df_eicu_test = df_eicu_test.sample(frac=1).reset_index(drop=True)
 
     # Extract required features. Remove target and other vars
     y_train = df_eicu_train[target].values
@@ -341,7 +385,6 @@ def load_hosp_dataset(dataset, df, target, features, hosp_train, hosp_test, use_
     print('Train {}, examples {}, features {}, label {}, sens {}'.format(hosp_train, x_train.shape[0], x_train.shape[1], y_train.sum()/len(y_train), sens_train.sum()/len(sens_train)))
     print('Val {}, examples {}, features {}, label {}, sens {}'.format(hosp_train, x_val.shape[0], x_val.shape[1], y_val.sum()/len(y_val), sens_val.sum()/len(sens_val)))
     print('Test {}, examples {}, features {}, label {}, sens {}'.format(hosp_test, x_test.shape[0], x_test.shape[1], y_test.sum()/len(y_test), sens_test.sum()/len(sens_test)))
-
     return (x_train, y_train, sens_train), (x_val, y_val, sens_val), (x_test, y_test, sens_test), orig_dims, nb_classes
 
 

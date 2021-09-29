@@ -11,7 +11,7 @@ from six.moves import range
 from fairlearn.metrics import MetricFrame
 from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference, false_negative_rate
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import brier_score_loss
+from sklearn.metrics import brier_score_loss, roc_auc_score
 
 import types
 import tempfile
@@ -20,7 +20,12 @@ import keras.models
 
 Metrics = namedtuple('Metrics',('brier', 'mae', 'logloss',
                                 'auc', 'acc', 'smr', 'citl', 'cs', 'ece',
-                                'eo', 'dp', 'fnr', 'citl_diff', 'cs_diff'))
+                                'eo', 'dp', 'fnr', 'citl_diff', 'cs_diff',
+                                'fnr_min', 'fnr_maj',
+                                'cs_min', 'cs_maj',
+                                'citl_min', 'citl_maj',
+                                'auc_diff', 'auc_min', 'auc_maj',
+                                'prob','pred','y','sens'))
 
 
 class MetricResults(object):
@@ -38,19 +43,34 @@ class MetricResults(object):
                 auc=d_train['auc'], acc=d_train['acc'],
                 smr=d_train['smr'], citl=d_train['citl'], cs=d_train['cs'], ece=d_train['ece'],
                 eo=d_train['eo'], dp=d_train['dp'], fnr=d_train['fnr'],
-                citl_diff=d_train['citl_diff'], cs_diff=d_train['cs_diff'])
+                citl_diff=d_train['citl_diff'], cs_diff=d_train['cs_diff'],
+                fnr_min=d_train['fnr_min'], fnr_maj=d_train['fnr_maj'],
+                cs_min=d_train['cs_min'], cs_maj=d_train['cs_maj'],
+                citl_min=d_train['citl_min'], citl_maj=d_train['citl_maj'],
+                auc_diff=d_train['auc_diff'], auc_min=d_train['auc_min'], auc_maj=d_train['auc_maj'],
+                prob=d_train['prob'], pred=d_train['pred'], y=d_train['y'], sens=d_train['sens'])
 
     d_test_ = Metrics(brier=d_test['brier'], mae=d_test['mae'], logloss=d_test['logloss'],
                 auc=d_test['auc'], acc=d_test['acc'],
                 smr=d_test['smr'], citl=d_test['citl'], cs=d_test['cs'], ece=d_test['ece'],
                 eo=d_test['eo'], dp=d_test['dp'], fnr=d_test['fnr'],
-                citl_diff=d_test['citl_diff'], cs_diff=d_test['cs_diff'])
+                citl_diff=d_test['citl_diff'], cs_diff=d_test['cs_diff'],
+                fnr_min=d_test['fnr_min'], fnr_maj=d_test['fnr_maj'],
+                cs_min=d_test['cs_min'], cs_maj=d_test['cs_maj'],
+                citl_min=d_test['citl_min'], citl_maj=d_test['citl_maj'],
+                auc_diff=d_test['auc_diff'], auc_min=d_test['auc_min'], auc_maj=d_test['auc_maj'],
+                prob=d_test['prob'], pred=d_test['pred'], y=d_test['y'], sens=d_test['sens'])
 
     d_val_ = Metrics(brier=d_val['brier'], mae=d_val['mae'], logloss=d_val['logloss'],
                 auc=d_val['auc'], acc=d_val['acc'],
                 smr=d_val['smr'], citl=d_val['citl'], cs=d_val['cs'], ece=d_val['ece'],
                 eo=d_val['eo'], dp=d_val['dp'], fnr=d_val['fnr'],
-                citl_diff=d_val['citl_diff'], cs_diff=d_val['cs_diff'])
+                citl_diff=d_val['citl_diff'], cs_diff=d_val['cs_diff'],
+                fnr_min=d_val['fnr_min'], fnr_maj=d_val['fnr_maj'],
+                cs_min=d_val['cs_min'], cs_maj=d_val['cs_maj'],
+                citl_min=d_val['citl_min'], citl_maj=d_val['citl_maj'],
+                auc_diff=d_val['auc_diff'], auc_min=d_val['auc_min'], auc_maj=d_val['auc_maj'],
+                prob=d_val['prob'], pred=d_val['pred'], y=d_val['y'], sens=d_val['sens'])
 
     self.results_train[shift_id, sample_id, run_id] = d_train_
     self.results_test[shift_id, sample_id, run_id] = d_test_
@@ -61,9 +81,15 @@ def get_metrics_array(results):
   num_shifts = results.num_shifts
   num_sample_choices = results.num_sample_choices
   num_runs = results.num_runs
-  metric_names = ['te_val_diff_auc','te_val_diff_smr','eo','dp','te_val_diff_brier',
-                  'citl','cs','fnr','citl_diff','cs_diff']
-  results_array = np.ones((num_sample_choices, num_shifts, num_runs, 10)) * (-1) # 0-auc, 1-smr, 2-eo, 3-dp
+  metric_names = ['aucdiff','smrdiff','eo','dp','brierdiff',
+                  'citl','cs','fnr','citldisp','csdisp',
+                  'auc', 'smr', 'brier', 'acc', 'csdiff',
+                  'aucval', 'csval', 'fnrval', 'csdispval',
+                  'auctrain', 'cstrain', 'fnrtrain', 'csdisptrain',
+                  'fnrmin', 'fnrmaj', 'csmin', 'csmaj', 'citlmin', 'citlmaj',
+                  'aucdisp', 'aucmin', 'aucmaj',
+                  'fnrsign','csdispsign','citldispsign', 'aucdispsign']
+  results_array = np.ones((num_sample_choices, num_shifts, num_runs, len(metric_names))) * (-1) # 0-auc, 1-smr, 2-eo, 3-dp
   for shift_id, sample_id, run_id in results.results_test:
     d_train = results.results_train[shift_id, sample_id, run_id]
     d_test = results.results_test[shift_id, sample_id, run_id]
@@ -79,6 +105,32 @@ def get_metrics_array(results):
     results_array[sample_id, shift_id, run_id, 7] = d_test.fnr
     results_array[sample_id, shift_id, run_id, 8] = d_test.citl_diff
     results_array[sample_id, shift_id, run_id, 9] = d_test.cs_diff
+    results_array[sample_id, shift_id, run_id, 10] = d_test.auc
+    results_array[sample_id, shift_id, run_id, 11] = d_test.smr
+    results_array[sample_id, shift_id, run_id, 12] = d_test.brier
+    results_array[sample_id, shift_id, run_id, 13] = d_test.acc
+    results_array[sample_id, shift_id, run_id, 14] = d_test.cs - d_val.cs
+    results_array[sample_id, shift_id, run_id, 15] = d_val.auc
+    results_array[sample_id, shift_id, run_id, 16] = d_val.cs
+    results_array[sample_id, shift_id, run_id, 17] = d_val.fnr
+    results_array[sample_id, shift_id, run_id, 18] = d_val.cs_diff
+    results_array[sample_id, shift_id, run_id, 19] = d_train.auc
+    results_array[sample_id, shift_id, run_id, 20] = d_train.cs
+    results_array[sample_id, shift_id, run_id, 21] = d_train.fnr
+    results_array[sample_id, shift_id, run_id, 22] = d_train.cs_diff
+    results_array[sample_id, shift_id, run_id, 23] = d_test.fnr_min
+    results_array[sample_id, shift_id, run_id, 24] = d_test.fnr_maj
+    results_array[sample_id, shift_id, run_id, 25] = d_test.cs_min
+    results_array[sample_id, shift_id, run_id, 26] = d_test.cs_maj
+    results_array[sample_id, shift_id, run_id, 27] = d_test.citl_min
+    results_array[sample_id, shift_id, run_id, 28] = d_test.citl_maj
+    results_array[sample_id, shift_id, run_id, 29] = d_test.auc_diff
+    results_array[sample_id, shift_id, run_id, 30] = d_test.auc_min
+    results_array[sample_id, shift_id, run_id, 31] = d_test.auc_maj
+    results_array[sample_id, shift_id, run_id, 32] = d_test.fnr_min - d_test.fnr_maj
+    results_array[sample_id, shift_id, run_id, 33] = d_test.cs_min - d_test.cs_maj
+    results_array[sample_id, shift_id, run_id, 34] = d_test.citl_min - d_test.citl_maj
+    results_array[sample_id, shift_id, run_id, 35] = d_test.auc_min - d_test.auc_maj
 
   return results_array, metric_names
 
@@ -226,12 +278,24 @@ def get_demography_parity_difference(target, predictions, sensitive_feature):
   return demographic_parity_difference(target, predictions, sensitive_features=sensitive_feature)
 
 
+def get_roc_auc_score_difference(target, probabilities, sensitive_feature):
+  metric_fns = {'roc_auc_score': roc_auc_score}
+  group = MetricFrame(metric_fns,
+                      target, probabilities,
+                      sensitive_features=sensitive_feature)
+  auc_min = group.by_group.loc[0].item()
+  auc_maj = group.by_group.loc[1].item()
+  return group.difference(method='between_groups').item(), auc_min, auc_maj
+
+
 def get_false_negative_rate_difference(target, predictions, sensitive_feature):
   metric_fns = {'false_negative_rate': false_negative_rate}
   group = MetricFrame(metric_fns,
                       target, predictions,
                       sensitive_features=sensitive_feature)
-  return group.difference(method='between_groups').item()
+  fnr_min = group.by_group.loc[0].item()
+  fnr_maj = group.by_group.loc[1].item()
+  return group.difference(method='between_groups').item(), fnr_min, fnr_maj
 
 
 def get_calibration_in_the_large_difference(ground_truth, probabilities, sensitive_feature):
@@ -239,7 +303,9 @@ def get_calibration_in_the_large_difference(ground_truth, probabilities, sensiti
   group = MetricFrame(metric_fns,
                       ground_truth, probabilities,
                       sensitive_features=sensitive_feature)
-  return group.difference(method='between_groups').item()
+  citl_min = group.by_group.loc[0].item()
+  citl_maj = group.by_group.loc[1].item()
+  return group.difference(method='between_groups').item(), citl_min, citl_maj
 
 
 def get_calibration_slope_difference(ground_truth, probabilities, sensitive_feature):
@@ -247,7 +313,9 @@ def get_calibration_slope_difference(ground_truth, probabilities, sensitive_feat
   group = MetricFrame(metric_fns,
                       ground_truth, probabilities,
                       sensitive_features=sensitive_feature)
-  return group.difference(method='between_groups').item()
+  cs_min = group.by_group.loc[0].item()
+  cs_maj = group.by_group.loc[1].item()
+  return group.difference(method='between_groups').item(), cs_min, cs_maj
 
 
 def _validate_probabilities(probabilities, multiclass=False):

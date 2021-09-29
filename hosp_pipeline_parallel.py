@@ -1,49 +1,26 @@
 '''
-Written by Stephan Rabanser https://github.com/steverab/failing-loudly
-Modifed
+Modifed from code by Stephan Rabanser https://github.com/steverab/failing-loudly
 
-Detect shifts across hospitals
+Detect shifts, train and test models across hospitals and regions
+Runs parallely across 36 processes
 
-Usage
+Usage:
+
 for multivaritate tests:
-python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 5 --random_runs 10 --min_samples 5000 --sens_attr race --group
-python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 10 --random_runs 10 --min_samples 2000 --sens_attr race
-
-python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 6 --random_runs 10 --min_samples 4000 --sens_attr race --group
-python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 2 --random_runs 10 --min_samples 10000 --sens_attr race --group
+# region
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 4 --random_runs 100 --min_samples 5000 --sens_attr race --group --group_type regions --limit_samples
+# beds
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 4 --random_runs 100 --min_samples 10000 --sens_attr race --group --group_type beds --limit_samples
+# region, beds
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 5 --random_runs 100 --min_samples 5000 --sens_attr race --group --group_type regions_beds --limit_samples
+# region, beds, teaching
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 6 --random_runs 100 --min_samples 4000 --sens_attr race --group --group_type regions_beds_teaching --limit_samples
+# hospitals
+python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 10 --random_runs 100 --min_samples 1631 --sens_attr race --limit_samples
+# python hosp_pipeline_parallel.py --datset eicu --path orig --test_type multiv --missing_imp mean --num_hosp 10 --random_runs 100 --min_samples 2000 --sens_attr race --limit_samples
 
 for univaritate tests:
 python hosp_pipeline_parallel.py eicu orig univ mean
-
-# TODO
-check test significance level adjust_sign_level = sign_level / len(hosp_pairs) in generate_hosp_plot
-quantify shift by discriminate between train test
-correlation between fairness, AUC and SMR
-auc with all features with PCA
-mmd with label and features
-check try catch for error in max_equalized_odds_violation when y_true and y_pred has only one value. error in cm.ravel()
-check apache variables for eicu
-sample size vs acc, smr Johnson plot with all train in X_tr_3, y_tr_3
-frequency univariate
-colorcode scatterplot by hospital meta data
-mice
-interpretable distribution change code
-mean_p_vals = -1 for 73, 338
-reduce dimension of X_te using model trained on X_te in shift_detector
-acc for dimension reduction also in shift_detector
-apache 4 feature group in apacheapsvar, apachepredvar SQL tables
-
-get HospitalIDs and FeatureGroups from function in data_utils
-use validation set for accuracy in shift_detector
-DimensionalityReduction.NoRed in shift_reductor used to calculate accuracy. calculate in separate class. reduce return prob instead of pred
-impute missing values in shift_reductor pca, srp, lda
-number of dims in shift_detector
-shift_tester.test_shift one dim check if t_val correct after FWER correction
-shift_tester.test_chi2_shift one dim return t_val
-use validation set
-load data once
-move filename in data_utils to main file
-2 rows less, 70128 orig vs now 70126
 '''
 
 import argparse
@@ -84,21 +61,28 @@ parser.add_argument("--num_hosp", type=int, default=5)
 parser.add_argument("--random_runs", type=int, default=10)
 parser.add_argument("--min_samples", type=int, default=5000)
 parser.add_argument("--group", action='store_true')
+parser.add_argument("--group_type", type=str, default='hosp')
+parser.add_argument("--limit_samples", action='store_true') # limit two-sample testing to 5000 samples
 args = parser.parse_args()
 # args = parser.parse_args("--datset eicu --path orig --test_type multiv\
 #                         --missing_imp mean --num_hosp 2 --random_runs 1\
-#                         --min_samples 1000 --sens_attr gender --group".split())
+#                         --min_samples 10000 --sens_attr race --group".split())
 print("Arguments", args)
 
 datset = args.datset
 test_type = args.test_type
 missing_imp = args.missing_imp
 use_group = args.group
+group_type = args.group_type
 sens_attr = args.sens_attr
+limit_samples = args.limit_samples
 
+HospitalGroups_eicu, HospitalGroupsColnames_eicu = get_groups_colnames(group_type)
+
+outdir = '/data/hs3673/medshifts/failing-loudly/'
 # path = './hosp_results_gossis_multiv/'
-path = './hosp_results_{}_{}/'.format(datset, test_type)
-path += '{}_group{}_nh{}_run{}_mins{}_s{}_{}/'.format(datset, use_group, args.num_hosp, args.random_runs, args.min_samples, sens_attr, args.path)
+path = outdir+'hosp_results_{}_{}_shuffle/'.format(datset, test_type)
+path += '{}_group{}_{}_nh{}_run{}_mins{}_s{}_l{}_{}/'.format(datset, use_group, group_type, args.num_hosp, args.random_runs, args.min_samples, sens_attr, limit_samples, args.path)
 print("path", path)
 
 if not os.path.exists(path):
@@ -122,8 +106,8 @@ if datset =='eicu':
     # feature_groups = [['demo']]
     # feature_groups = [['saps2labs','saps2vitals']]
     # feature_groups = [['labs'], ['vitals'], ['demo']]
-    feature_groups = [['saps2'], ['labs'], ['vitals'], ['demo']]
-    # feature_groups = [['saps2']]
+    # feature_groups = [['saps2'], ['labs'], ['vitals'], ['demo']]
+    feature_groups = [['saps2']]
     # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
 elif datset =='gossis':
     HospitalIDs = HospitalIDs_gossis
@@ -305,7 +289,7 @@ def test_hosp_pair(df, target, features, feature_group, hosp_train, hosp_test, u
 
                 # Detect shift
                 time_now = time.time()
-                shift_detector = ShiftDetector(dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset)
+                shift_detector = ShiftDetector(dr_techniques, test_types, od_tests, md_tests, sign_level, red_models, sample, datset, limit_samples)
                 (od_decs, ind_od_decs, ind_od_p_vals, ind_od_t_vals, ind_od_feat_p_vals, ind_od_feat_t_vals),\
                 (md_decs, ind_md_decs, ind_md_p_vals, ind_md_t_vals),\
                 red_dim, red_models, d_tr, d_te, d_val\

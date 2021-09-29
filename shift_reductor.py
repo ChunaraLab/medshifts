@@ -2,6 +2,7 @@
 # IMPORTS
 # -------------------------------------------------
 
+import warnings
 import numpy as np
 
 from sklearn.decomposition import PCA
@@ -108,16 +109,32 @@ class ShiftReductor:
     def evaluate(self, model, X, y, sens):
         if self.dr_tech == DimensionalityReduction.NoRed: # TODO calculate accuracy in separate class than dimension reduction
             prob = model.predict_proba(X)[:,1]
-            pred = model.predict(X)
+            # pred = model.predict(X)
+            pred = (model.predict_proba(X)[:,1]>=np.mean(y)).astype(bool) # test class ratio as threshold
             d = dict()
             
+            d['prob'] = prob
+            d['pred'] = pred
+            d['y'] = y
+            d['sens'] = sens
+
             # calibration
             # calculate SMR
             d['count'] = y.shape[0] # TODO count non-NA elements only
             d['outcome'] = y.sum()
             d['smr'] = y.sum() / prob.sum()
             
-            d['ece'] = expected_calibration_error(y, prob)
+            # with warnings.catch_warnings():
+            #     # Cause all warnings to always be triggered.
+            #     warnings.simplefilter("error")
+            #     try:
+            #         d['ece'] = expected_calibration_error(y, prob)
+            #     except Warning as w:
+            #         print("*********Warning in expected_calibration_error*******")
+            #         print(w)
+            d['ece'] = np.nan # TODO: correct error: Mean of empty slice.
+            # d['ece'] = expected_calibration_error(y, prob)
+
             d['citl'] = calibration_in_the_large(y, prob)
             try:
                 d['cs'] = calibration_slope(y, prob)
@@ -146,16 +163,26 @@ class ShiftReductor:
                 print("*********Error in max_equalized_odds_violation*******")
                 print(err)
                 d['eo'] = np.nan
+            
             d['dp'] = get_demography_parity_difference(y, pred, sens)
-            d['fnr'] = get_false_negative_rate_difference(y, pred, sens)
-            d['citl_diff'] = get_calibration_in_the_large_difference(y, prob, sens)
+
+            d['fnr'], d['fnr_min'], d['fnr_maj'] = get_false_negative_rate_difference(y, pred, sens)
             try:
-                d['cs_diff'] = get_calibration_slope_difference(y, prob, sens)
+                d['auc_diff'], d['auc_min'], d['auc_maj'] = get_roc_auc_score_difference(y, prob, sens)
+            except ValueError as err:
+                print("*********Error in get_roc_auc_score_difference*******")
+                print(err)
+                d['auc_diff'], d['auc_min'], d['auc_maj'] = np.nan, np.nan, np.nan
+                
+            d['citl_diff'], d['citl_min'], d['citl_maj'] = get_calibration_in_the_large_difference(y, prob, sens)
+            
+            try:
+                d['cs_diff'], d['cs_min'], d['cs_maj'] = get_calibration_slope_difference(y, prob, sens)
             except ValueError as err:
                 print("*********Error in get_calibration_slope_difference*******")
                 print(err)
-                d['cs_diff'] = np.nan
-            
+                d['cs_diff'], d['cs_min'], d['cs_maj'] = np.nan, np.nan, np.nan
+
             # print('metrics', d)
             return d
 

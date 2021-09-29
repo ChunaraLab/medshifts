@@ -1,18 +1,25 @@
 '''
-Written by Stephan Rabanser https://github.com/steverab/failing-loudly
-Modifed
-
-Usage:
-python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 5 --random_runs 10 --min_samples 5000 --sens_attr race --group
-python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 10 --random_runs 10 --min_samples 2000 --sens_attr race
-
-python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 6 --random_runs 10 --min_samples 4000 --sens_attr race --group
-python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 2 --random_runs 10 --min_samples 10000 --sens_attr race --group
+Modifed from code by Stephan Rabanser https://github.com/steverab/failing-loudly
 
 Plot test results across hospitals
+
+Usage:
+
+# region
+python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 4 --random_runs 100 --min_samples 5000 --sens_attr race --group --group_type regions --limit_samples
+# beds
+python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 4 --random_runs 100 --min_samples 10000 --sens_attr race --group --group_type beds --limit_samples
+# region, beds
+python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 5 --random_runs 100 --min_samples 5000 --sens_attr race --group --group_type regions_beds --limit_samples
+# region, beds, teaching
+python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 6 --random_runs 100 --min_samples 4000 --sens_attr race --group --group_type regions_beds_teaching --limit_samples
+# hospitals
+python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 10 --random_runs 100 --min_samples 1631 --sens_attr race --limit_samples
+# python generate_hosp_plot.py --datset eicu --path orig --test_type multiv --num_hosp 10 --random_runs 100 --min_samples 2000 --sens_attr race --limit_samples
 '''
 
 import argparse
+from multiprocessing import Value
 import pickle
 import numpy as np
 import seaborn as sns
@@ -48,16 +55,22 @@ parser.add_argument("--num_hosp", type=int, default=5)
 parser.add_argument("--random_runs", type=int, default=10)
 parser.add_argument("--min_samples", type=int, default=1500)
 parser.add_argument("--group", action='store_true')
+parser.add_argument("--group_type", type=str, default='hosp')
+parser.add_argument("--limit_samples", action='store_true') # limit two-sample testing to 5000 samples
 args = parser.parse_args()
 
 datset = args.datset # sys.argv[1]
 test_type = args.test_type # sys.argv[3]
 use_group = args.group
+group_type = args.group_type
 sens_attr = args.sens_attr
+limit_samples = args.limit_samples
+
+HospitalGroups_eicu, HospitalGroupsColnames_eicu = get_groups_colnames(group_type)
 
 # path = './hosp_results_gossis_multiv/'
-path = './hosp_results_{}_{}/'.format(datset, test_type)
-path += '{}_group{}_nh{}_run{}_mins{}_s{}_{}/'.format(datset, use_group, args.num_hosp, args.random_runs, args.min_samples, sens_attr, args.path)
+path = './hosp_results_{}_{}_shuffle/'.format(datset, test_type)
+path += '{}_group{}_{}_nh{}_run{}_mins{}_s{}_l{}_{}/'.format(datset, use_group, group_type, args.num_hosp, args.random_runs, args.min_samples, sens_attr, limit_samples, args.path)
 
 if not os.path.exists(path):
     os.makedirs(path)
@@ -81,8 +94,8 @@ if datset =='eicu':
     # feature_groups = [['vitals']]
     # feature_groups = [['demo']]
     # feature_groups = [['saps2labs','saps2vitals']]
-    feature_groups = [['saps2'], ['labs'], ['vitals'], ['demo']]
-    # feature_groups = [['saps2']]
+    # feature_groups = [['saps2'], ['labs'], ['vitals'], ['demo']]
+    feature_groups = [['saps2']]
     # feature_groups = [['saps2'], ['labs','vitals','demo','others']]
 elif datset =='gossis':
     HospitalIDs = HospitalIDs_gossis
@@ -166,11 +179,13 @@ shifts = ['orig']
 # -------------------------------------------------
 
 sns.set_style("ticks")
-cmap = sns.cubehelix_palette(2, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
+cmap = sns.color_palette("rocket_r", as_cmap=True)
+# cmap = sns.color_palette("vlag", as_cmap=True)
+# cmap = sns.cubehelix_palette(2, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
 # Discrete colormap using code by lanery https://stackoverflow.com/questions/38836154/discrete-legend-in-seaborn-heatmap-plot                
 cmap_binary = sns.cubehelix_palette(2, hue=0.05, rot=0, light=0.9, dark=0)
 
-NUM_METRICS = 10
+NUM_METRICS = 36
 
 samples_shifts_rands_dr_tech_feats_hosps = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot), len(feature_groups), len(hosp_pairs))) * (-1)
 samples_shifts_rands_dr_tech_feats_hosps_t_val = np.ones((len(samples), len(shifts), random_runs, len(dr_techniques_plot), len(feature_groups), len(hosp_pairs))) * (-1)
@@ -201,6 +216,8 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
 
         with open("%s/samples_shifts_rands_metrics.pkl" % (hosp_path), 'rb') as fr:
             metric_results = pickle.load(fr)
+            # print("sadf", "%s/samples_shifts_rands_metrics.pkl" % (hosp_path))
+            # print(metric_results.results_train[0,0,0])
         samples_shifts_rands_te_acc, metric_names = get_metrics_array(metric_results)
 
         samples_shifts_rands_dr_tech_feats_hosps[:,:,:,:,feature_group_idx,hosp_pair_idx] = samples_shifts_rands_dr_tech
@@ -226,6 +243,8 @@ np.save("%s/samples_shifts_rands_feats_hosp_pairs_te_acc.npy" % (path), samples_
 
 # Feat, dr, shift, sample - mean
 for feature_group_idx, feature_group in enumerate(feature_groups):
+    print("==========\nPlotting", feature_group)
+    print("==========")
 
     target = FeatureGroups['outcome']
     feature_set = []
@@ -246,11 +265,6 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
 
                 hosp_pair_pval = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
                 hosp_pair_tval = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
-
-                hosp_pair_auc = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
-                hosp_pair_smr = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
-                hosp_pair_eo = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
-                hosp_pair_dp = np.ones((len(HospitalIDs), len(HospitalIDs))) * (-1)
 
                 if test_type == 'univ':
                     # hosp_pair_feat_pval = np.ones((len(hosp_pairs), len(feature_set), random_runs))
@@ -282,26 +296,6 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                         hosp_pair_feat_pval[hosp_pair_idx, :] = mean_feat_p_vals < adjust_sign_level
                         hosp_pair_feat_tval[hosp_pair_idx, :] = mean_feat_t_vals
 
-                    if dr == DimensionalityReduction.NoRed.value: # TODO run auc smr plots only once in dr_techniques_plot
-                        feats_shifts_samples_te_auc = samples_shifts_rands_feats_hosps_te_acc[si,shift_idx,:,feature_group_idx,hosp_pair_idx,0]
-                        feats_shifts_samples_te_smr = samples_shifts_rands_feats_hosps_te_acc[si,shift_idx,:,feature_group_idx,hosp_pair_idx,1]
-                        feats_shifts_samples_te_eo = samples_shifts_rands_feats_hosps_te_acc[si,shift_idx,:,feature_group_idx,hosp_pair_idx,2]
-                        feats_shifts_samples_te_dp = samples_shifts_rands_feats_hosps_te_acc[si,shift_idx,:,feature_group_idx,hosp_pair_idx,3]
-
-                        mean_te_auc = np.mean(feats_shifts_samples_te_auc)
-                        std_te_auc = np.std(feats_shifts_samples_te_auc)
-                        mean_te_smr = np.mean(feats_shifts_samples_te_smr)
-                        std_te_smr = np.std(feats_shifts_samples_te_smr)
-                        mean_te_eo = np.mean(feats_shifts_samples_te_eo)
-                        std_te_eo = np.std(feats_shifts_samples_te_eo)
-                        mean_te_dp = np.mean(feats_shifts_samples_te_dp)
-                        std_te_dp = np.std(feats_shifts_samples_te_dp)
-
-                        hosp_pair_auc[hosp_train_idx, hosp_test_idx] = mean_te_auc
-                        hosp_pair_smr[hosp_train_idx, hosp_test_idx] = mean_te_smr
-                        hosp_pair_eo[hosp_train_idx, hosp_test_idx] = mean_te_eo
-                        hosp_pair_dp[hosp_train_idx, hosp_test_idx] = mean_te_dp
-
                 # p-value MMD test
                 hosp_avg_pval = hosp_pair_pval.mean(axis=1)
                 hosp_pair_pval_triu = np.triu(np.ones_like(hosp_pair_pval, dtype=np.bool))
@@ -313,9 +307,16 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                 fig = sns.heatmap(hosp_pair_pval, mask=hosp_pair_pval_triu, linewidths=0.5, cmap=ListedColormap(cmap_binary))
                 colorbar = fig.collections[0].colorbar
                 colorbar.set_ticks([0.25, 0.75])
-                colorbar.set_ticklabels(['No Shift', 'Shift'])
-                plt.xlabel('Target Hospital ID') # Target
-                plt.ylabel('Source Hospital ID') # Source
+                colorbar.set_ticklabels(['No Data Shift', 'Data Shift'])
+                label_text = 'Hospital ID'
+                if use_group and group_type=='regions':
+                    label_text = 'Region'
+                elif use_group and group_type=='beds':
+                    label_text = 'Numbedscategory'
+                plt.xlabel(label_text) # Target
+                plt.ylabel(label_text) # Source
+                if not use_group:
+                    plt.xticks(rotation=30)
                 plt.savefig("%s/%s_%s_%s_%s_p_val_hmp.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                 plt.clf()
                 
@@ -363,8 +364,15 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                 # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
                 # fig = sns.heatmap(hosp_pair_tval, linewidths=0.5, cmap=cmap)
                 fig = sns.heatmap(hosp_pair_tval, mask=hosp_pair_tval_triu, linewidths=0.5, cmap=cmap)
-                plt.xlabel('Target Hospital ID') # Target
-                plt.ylabel('Source Hospital ID') # Source
+                label_text = 'Hospital ID'
+                if use_group and group_type=='regions':
+                    label_text = 'Region'
+                elif use_group and group_type=='beds':
+                    label_text = 'Numbedscategory'
+                plt.xlabel(label_text) # Target
+                plt.ylabel(label_text) # Source
+                if not use_group:
+                    plt.xticks(rotation=30)
                 plt.savefig("%s/%s_%s_%s_%s_t_val_hmp.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
                 plt.clf()
 
@@ -375,6 +383,13 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                     h_stats_all = hosp_all_pairs_tval
 
                     for metric_idx in range(NUM_METRICS):
+                        if metric_names[metric_idx] in ['csdiff', 'cs', 'fnrsign', 'csdispsign', 'aucdispsign']:
+                            cmap = sns.color_palette("vlag", as_cmap=True)
+                        elif metric_names[metric_idx] in ['aucdiff', 'auc']:
+                            cmap = sns.color_palette("rocket", as_cmap=True)
+                        else:
+                            cmap = sns.color_palette("rocket_r", as_cmap=True)
+                        
                         metric_name = metric_names[metric_idx].replace('_', '\_')
 
                         feats_shifts_samples_metric = samples_shifts_rands_feats_hosp_pairs_te_acc[si,shift_idx,:,feature_group_idx,:,:,metric_idx]
@@ -386,9 +401,31 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                         hosp_pair_metric = pd.DataFrame(mean_te_metric, columns=HospitalIDsColnames, index=HospitalIDsColnames)
                         hosp_pair_metric.to_csv("%s/%s_%s_%s_%s_%s_df.csv" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample, metric_name), index=True)
                         # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
-                        fig = sns.heatmap(hosp_pair_metric, linewidths=0.5, cmap=cmap)
-                        plt.xlabel('Target Hospital ID')
-                        plt.ylabel('Source Hospital ID')
+                        
+                        center, vmin, vmax = None, None, None
+                        if not use_group:
+                            if metric_names[metric_idx] in ['csdisp', 'aucdisp', 'fnr']:
+                                center, vmin, vmax = None, None, np.nanpercentile(mean_te_metric,97.5)
+                            elif metric_names[metric_idx] in ['csdispsign', 'aucdispsign', 'fnrsign', 'fnrmin', 'fnrmaj']:
+                                center, vmin, vmax = 0, np.nanpercentile(mean_te_metric,2.5), np.nanpercentile(mean_te_metric,97.5)
+                            elif metric_names[metric_idx] in ['csmin', 'csmaj']:
+                                center, vmin, vmax = 1, np.nanpercentile(mean_te_metric,2.5), np.nanpercentile(mean_te_metric,97.5)
+                        
+                        fig = sns.heatmap(hosp_pair_metric, linewidths=0.5, cmap=cmap, center=center, vmin=vmin, vmax=vmax)
+                        
+                        xlabel_text = 'Test Hospital ID'
+                        ylabel_text = 'Train Hospital ID'
+                        if use_group and group_type=='regions':
+                            xlabel_text = 'Test Region'
+                            ylabel_text = 'Train Region'
+                        elif use_group and group_type in ['beds', 'regions_beds', 'regions_beds_teaching']:
+                            xlabel_text = 'Test Category'
+                            ylabel_text = 'Train Category'
+                        plt.xlabel(xlabel_text)
+                        plt.ylabel(ylabel_text)
+                        
+                        if not use_group:
+                            plt.xticks(rotation=30)
                         plt.savefig("%s/%s_%s_%s_%s_%s_hmp.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample, metric_name), bbox_inches='tight')
                         plt.clf()
 
@@ -397,77 +434,6 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
 
                         h_stats_all = h_stats_all.merge(hosp_all_pairs_metric, how='left',
                                                     left_on=['Source','Target'], right_on = ['Source','Target'])
-                    
-                    # AUC
-                    # hosp_avg_auc = hosp_pair_auc.mean(axis=1)
-                    # hosp_min_auc = hosp_pair_auc.min(axis=1)
-                    # hosp_pair_auc = pd.DataFrame(hosp_pair_auc, columns=HospitalIDsColnames, index=HospitalIDsColnames)
-                    # hosp_pair_auc.to_csv("%s/%s_%s_%s_%s_te_val_diff_auc_df.csv" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), index=True)
-                    # # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
-                    # fig = sns.heatmap(hosp_pair_auc, linewidths=0.5, cmap=cmap)
-                    # plt.xlabel('Target Hospital ID')
-                    # plt.ylabel('Source Hospital ID')
-                    # plt.savefig("%s/%s_%s_%s_%s_te_val_diff_auc_hmp.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
-
-                    # hosp_all_pairs_auc = pd.melt(hosp_pair_auc.reset_index(), id_vars='index')
-                    # hosp_all_pairs_auc.columns = ['Source','Target','AUC']
-
-                    # SMR
-                    # hosp_avg_smr = hosp_pair_smr.mean(axis=1)
-                    # hosp_pair_smr = pd.DataFrame(hosp_pair_smr, columns=HospitalIDsColnames, index=HospitalIDsColnames)
-                    # hosp_pair_smr.to_csv("%s/%s_%s_%s_%s_te_val_diff_smr_df.csv" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), index=True)
-                    # # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
-                    # fig = sns.heatmap(hosp_pair_smr, linewidths=0.5, cmap=cmap)
-                    # plt.xlabel('Target Hospital ID')
-                    # plt.ylabel('Source Hospital ID')
-                    # plt.savefig("%s/%s_%s_%s_%s_te_val_diff_smr_hmp.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
-
-                    # hosp_all_pairs_smr = pd.melt(hosp_pair_smr.reset_index(), id_vars='index')
-                    # hosp_all_pairs_smr.columns = ['Source','Target','SMR']
-
-                    # EO
-                    # hosp_avg_eo = hosp_pair_eo.mean(axis=1)
-                    # hosp_pair_eo = pd.DataFrame(hosp_pair_eo, columns=HospitalIDsColnames, index=HospitalIDsColnames)
-                    # hosp_pair_eo.to_csv("%s/%s_%s_%s_%s_te_val_diff_eo_df.csv" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), index=True)
-                    # # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
-                    # fig = sns.heatmap(hosp_pair_eo, linewidths=0.5, cmap=cmap)
-                    # plt.xlabel('Target Hospital ID')
-                    # plt.ylabel('Source Hospital ID')
-                    # plt.savefig("%s/%s_%s_%s_%s_te_val_diff_eo_hmp.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
-
-                    # hosp_all_pairs_eo = pd.melt(hosp_pair_eo.reset_index(), id_vars='index')
-                    # hosp_all_pairs_eo.columns = ['Source','Target','EO']
-
-                    # DP
-                    # hosp_avg_dp = hosp_pair_dp.mean(axis=1)
-                    # hosp_pair_dp = pd.DataFrame(hosp_pair_dp, columns=HospitalIDsColnames, index=HospitalIDsColnames)
-                    # hosp_pair_dp.to_csv("%s/%s_%s_%s_%s_te_val_diff_dp_df.csv" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), index=True)
-                    # # cmap = sns.cubehelix_palette(50, hue=0.05, rot=0, light=0.9, dark=0, as_cmap=True)
-                    # fig = sns.heatmap(hosp_pair_dp, linewidths=0.5, cmap=cmap)
-                    # plt.xlabel('Target Hospital ID')
-                    # plt.ylabel('Source Hospital ID')
-                    # plt.savefig("%s/%s_%s_%s_%s_te_val_diff_dp_hmp.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
-
-                    # hosp_all_pairs_dp = pd.melt(hosp_pair_dp.reset_index(), id_vars='index')
-                    # hosp_all_pairs_dp.columns = ['Source','Target','DP']
-
-                    # Scatter plot
-                    # AUC, SMR, EO, DP
-                    # h_stats = hosp_all_pairs_tval.merge(hosp_all_pairs_auc, how='left',
-                    #                                 left_on=['Source','Target'], right_on = ['Source','Target'])\
-                    #                             .merge(hosp_all_pairs_smr, how='left',
-                    #                                 left_on=['Source','Target'], right_on = ['Source','Target'])\
-                    #                             .merge(hosp_all_pairs_eo, how='left',
-                    #                                 left_on=['Source','Target'], right_on = ['Source','Target'])\
-                    #                             .merge(hosp_all_pairs_dp, how='left',
-                    #                                 left_on=['Source','Target'], right_on = ['Source','Target'])
-                                                
-                    # plot only across hospital results
-                    # h_stats = h_stats[h_stats.Source!=h_stats.Target]
 
                     # plot only across hospital results
                     h_stats_all = h_stats_all[h_stats_all.Source!=h_stats_all.Target]
@@ -476,7 +442,14 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                         metric_name = metric_names[metric_idx].replace('_', '\_')
                         
                         fig = sns.regplot(data=h_stats_all, x='MMD', y=metric_name, scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
-                        corr_coef, pval_corr_coef = stats.pearsonr(h_stats_all['MMD'], h_stats_all[metric_name])
+                        try:
+                            corr_coef, pval_corr_coef = stats.pearsonr(h_stats_all['MMD'], h_stats_all[metric_name])
+                        except ValueError as err:
+                            print(feature_group, metric_name)
+                            print(err)
+                            corr_coef = 0.0
+                            pval_corr_coef = 1.0
+
                         textstr = '\n'.join((
                             r'Pearson corr.=%.4f' % (corr_coef, ),
                             r'p-val=%.4f' % (pval_corr_coef, )))
@@ -486,81 +459,9 @@ for feature_group_idx, feature_group in enumerate(feature_groups):
                         fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
                                 verticalalignment='top', bbox=props)
                         plt.xlabel('$MMD^2$')
-                        plt.ylabel('Test {} - Val {}'.format(metric_name, metric_name))
+                        plt.ylabel('Generalization gap in {}'.format(metric_name))
                         plt.savefig("%s/%s_%s_%s_%s_mmd_%s_scatter.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample, metric_name), bbox_inches='tight')
                         plt.clf()
 
-                    # AUC
-                    # h_stats.to_csv("%s/hstats_%s_%s_%s_%s_df.csv" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), index=True)
                     h_stats_all.to_csv("%s/hstats_all_%s_%s_%s_%s_df.csv" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), index=True)
-                    # fig = sns.regplot(data=h_stats, x='MMD', y='AUC', scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
-                    # corr_coef, pval_corr_coef = stats.pearsonr(h_stats['MMD'], h_stats['AUC'])
-                    # textstr = '\n'.join((
-                    #     r'Pearson corr.=%.4f' % (corr_coef, ),
-                    #     r'p-val=%.4f' % (pval_corr_coef, )))
-                    # # these are matplotlib.patch.Patch properties
-                    # props = dict(boxstyle='round', facecolor='white', alpha=0.5)
-                    # # place a text box in upper left in axes coords
-                    # fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
-                    #         verticalalignment='top', bbox=props)
-                    # plt.xlabel('$MMD^2$')
-                    # plt.ylabel('Test AUC - Val AUC')
-                    # plt.savefig("%s/%s_%s_%s_%s_mmd_te_val_diff_auc_scatter.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
-
-                    # SMR
-                    # fig = sns.regplot(data=h_stats, x='MMD', y='SMR', scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
-                    # corr_coef, pval_corr_coef = stats.pearsonr(h_stats['MMD'], h_stats['SMR'])
-                    # textstr = '\n'.join((
-                    #     r'Pearson corr.=%.4f' % (corr_coef, ),
-                    #     r'p-val=%.4f' % (pval_corr_coef, )))
-                    # fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
-                    #         verticalalignment='top', bbox=props)
-                    # plt.xlabel('$MMD^2$')
-                    # plt.ylabel('Test SMR - Val SMR')
-                    # plt.savefig("%s/%s_%s_%s_%s_mmd_te_val_diff_smr_scatter.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
                     
-                    # EO
-                    # fig = sns.regplot(data=h_stats, x='MMD', y='EO', scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
-                    # corr_coef, pval_corr_coef = stats.pearsonr(h_stats['MMD'], h_stats['EO'])
-                    # textstr = '\n'.join((
-                    #     r'Pearson corr.=%.4f' % (corr_coef, ),
-                    #     r'p-val=%.4f' % (pval_corr_coef, )))
-                    # fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
-                    #         verticalalignment='top', bbox=props)
-                    # plt.xlabel('$MMD^2$')
-                    # plt.ylabel('Test EO')
-                    # plt.savefig("%s/%s_%s_%s_%s_mmd_te_val_diff_eo_scatter.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
-
-                    # DP
-                    # fig = sns.regplot(data=h_stats, x='MMD', y='DP', scatter_kws={"s": 80, 'alpha':0.6}, truncate=False)
-                    # corr_coef, pval_corr_coef = stats.pearsonr(h_stats['MMD'], h_stats['DP'])
-                    # textstr = '\n'.join((
-                    #     r'Pearson corr.=%.4f' % (corr_coef, ),
-                    #     r'p-val=%.4f' % (pval_corr_coef, )))
-                    # fig.text(0.5, 0.95, textstr, transform=fig.transAxes, fontsize=14,
-                    #         verticalalignment='top', bbox=props)
-                    # plt.xlabel('$MMD^2$')
-                    # plt.ylabel('Test DP')
-                    # plt.savefig("%s/%s_%s_%s_%s_mmd_te_val_diff_dp_scatter.pdf" % (feats_path, "_".join(feature_group), DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
-                    
-                    # h_stats = pd.DataFrame(data=np.concatenate(\
-                    #     [hosp_avg_tval[:,np.newaxis], hosp_avg_auc[:,np.newaxis], hosp_min_auc[:,np.newaxis],\
-                    #         hosp_avg_smr[:,np.newaxis]],axis=1),\
-                    #     columns=['MMD','AUC','AUC_min','SMR'],\
-                    #     index=HospitalIDs)
-                                      
-                    # fig = sns.scatterplot(data=h_stats, x='MMD', y='AUC', s=100, alpha=0.6)
-                    # plt.xlabel('$MMD^2$, average across hospital pairs')
-                    # plt.ylabel('AUC')
-                    # plt.savefig("%s/%s_%s_%s_avgmmd_avgacc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
-
-                    # fig = sns.scatterplot(data=h_stats, x='MMD', y='AUC_min', s=100, alpha=0.6)
-                    # plt.xlabel('$MMD^2$, min across hospital pairs')
-                    # plt.ylabel('AUC')
-                    # plt.savefig("%s/%s_%s_%s_avgmmd_minacc_scatter.pdf" % (feats_path, DimensionalityReduction(dr).name, shift, sample), bbox_inches='tight')
-                    # plt.clf()
